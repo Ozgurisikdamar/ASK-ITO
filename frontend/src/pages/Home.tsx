@@ -96,7 +96,7 @@ export function Home() {
               </select>
               <p className="mb-1 font-medium text-content">Domain</p>
               <div className="flex gap-3">
-                {(["all", "nobel", "quantum"] as const).map((d) => (
+                {(["all", "nobel", "quantum", "ai"] as const).map((d) => (
                   <label key={d} className="flex items-center gap-1 text-content-muted">
                     <input
                       type="radio"

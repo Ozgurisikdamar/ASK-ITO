@@ -1,0 +1,81 @@
+# Nobel seeds. Scope: last five years (2022-2026) in Physics, Chemistry and
+# Physiology/Medicine, plus a few landmark prizes from 2017-2021.
+#
+# kinds:
+#   laureate : person biography (fetched, NOT used as an expansion source)
+#   topic    : scientific subject (fetched AND used as a one-step expansion source)
+#   general  : overview/list page
+#
+# Ambiguous person names are given with the Wikipedia qualifier so resolution
+# does not land on a disambiguation page.
+domain: nobel
+
+general:
+  - Nobel Prize in Physics
+  - Nobel Prize in Chemistry
+  - Nobel Prize in Physiology or Medicine
+
+years:
+  "2022":
+    physics:
+      laureates: [Alain Aspect, John Clauser, Anton Zeilinger]
+      topics: [Bell test, Bell's theorem, Quantum entanglement]
+    chemistry:
+      laureates: [Carolyn Bertozzi, Morten P. Meldal, K. Barry Sharpless]
+      topics: [Click chemistry, Bioorthogonal chemistry]
+    medicine:
+      laureates: [Svante Pääbo]
+      topics: [Neanderthal genome project, Denisovan, Paleogenetics]
+  "2023":
+    physics:
+      laureates: [Pierre Agostini, Ferenc Krausz, Anne L'Huillier]
+      topics: [Attosecond physics, High harmonic generation]
+    chemistry:
+      laureates: [Moungi Bawendi, Louis E. Brus, Alexei Ekimov]
+      topics: [Quantum dot]
+    medicine:
+      laureates: [Katalin Karikó, Drew Weissman]
+      topics: [mRNA vaccine, Nucleoside-modified messenger RNA]
+  "2024":
+    physics:
+      laureates: [John Hopfield, Geoffrey Hinton]
+      topics: [Hopfield network, Boltzmann machine]
+    chemistry:
+      laureates: [David Baker (biochemist), Demis Hassabis, John Jumper]
+      topics: [AlphaFold, Protein design]
+    medicine:
+      laureates: [Victor Ambros, Gary Ruvkun]
+      topics: [MicroRNA, Lin-4 microRNA precursor]
+  "2025":
+    physics:
+      laureates: [John Clarke (physicist), Michel Devoret, John Martinis]
+      topics: [Macroscopic quantum phenomena, Josephson effect, Superconducting quantum computing]
+    chemistry:
+      laureates: [Susumu Kitagawa, Richard Robson (chemist), Omar M. Yaghi]
+      topics: [Metal–organic framework]
+    medicine:
+      laureates: [Mary E. Brunkow, Fred Ramsdell, Shimon Sakaguchi]
+      topics: [Regulatory T cell, FOXP3, Immune tolerance]
+  "2026":
+    physics:
+      laureates: [Francis Halzen]
+      topics: [IceCube Neutrino Observatory, Neutrino astronomy]
+    chemistry:
+      laureates: [Henri B. Kagan, Kenso Soai]
+      topics: [Soai reaction, Homochirality]
+    medicine:
+      laureates: [Karl Deisseroth, Peter Hegemann, Georg Nagel]
+      topics: [Optogenetics, Channelrhodopsin]
+
+# Landmark prizes (2017-2021), added for prominence.
+landmark:
+  - laureates: [Rainer Weiss, Barry Barish, Kip Thorne]
+    topics: [Gravitational wave, LIGO, First observation of gravitational waves]
+  - laureates: [James P. Allison, Tasuku Honjo]
+    topics: [Cancer immunotherapy, Immune checkpoint]
+  - laureates: [John B. Goodenough, M. Stanley Whittingham, Akira Yoshino]
+    topics: [Lithium-ion battery]
+  - laureates: [Emmanuelle Charpentier, Jennifer Doudna]
+    topics: [CRISPR, Cas9, CRISPR gene editing]
+  - laureates: [Roger Penrose, Reinhard Genzel, Andrea M. Ghez]
+    topics: [Black hole, Sagittarius A*]

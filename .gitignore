@@ -23,6 +23,8 @@ backend/data/raw/*
 !backend/data/raw/.gitkeep
 backend/data/bm25/*
 !backend/data/bm25/.gitkeep
+# Generated ingest report (seed yaml files ARE committed)
+backend/data/seeds/unresolved.log
 
 # Model / HF caches
 .cache/

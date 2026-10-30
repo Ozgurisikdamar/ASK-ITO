@@ -14,6 +14,7 @@ export const strings = {
     all: "All",
     nobel: "Nobel",
     quantum: "Quantum",
+    ai: "AI",
   },
   exampleChips: [
     "Who shared the 2020 Chemistry prize and for what?",

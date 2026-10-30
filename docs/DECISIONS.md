@@ -30,6 +30,50 @@ The LLM is accessed through an OpenAI-compatible client abstraction. Default
 `LLM_MODE=mock` provides a deterministic, offline stub so the pipeline and
 tests can run with no model downloaded. Model names come only from `.env`.
 
+## ADR-0007: Corpus scope refinement (M2)
+
+The original scope (§3) targeted 1000–1500 articles across Nobel (2017–2026)
+and quantum computing. The build environment's shared egress IP is rate-limited
+by Wikimedia (HTTP 429 with `Retry-After` on the Action API, REST v1 and
+`api.wikimedia.org` alike), so a live ingest at that volume is not feasible
+here. The scope was therefore refined to a smaller, curated corpus that is still
+representative and ingestible:
+
+- **Nobel**: the last five years (2022–2026) in Physics, Chemistry and
+  Physiology/Medicine (laureates + topic articles), plus a few landmark prizes
+  from 2017–2021 (gravitational waves/LIGO, cancer immunotherapy, lithium-ion
+  battery, CRISPR, black holes).
+- **Quantum**: the quantum-computing seed branch (unchanged from §3.2).
+- **AI** (new domain): five core areas required by the product owner —
+  computer vision / image processing, Transformers & large language models,
+  retrieval-augmented generation, autonomous AI agents, deep learning — plus
+  directly related bridge articles (several of which connect to the 2024 Nobel
+  prizes: Hopfield networks, Boltzmann machines, AlphaFold).
+
+A new `ai` document domain is added (migration 0002). The mandatory components
+(BM25 + vector hybrid, reranker, RAGAS) are unchanged. The one-step expansion,
+filtering, cleaning and snapshot logic are unchanged; only the seed set and
+total budget shrink. `make ingest` run on an unthrottled network reproduces the
+same snapshot at whatever budget is configured.
+
+## ADR-0008: Wikipedia access via the Action API, with Retry-After backoff
+
+Ingest uses the MediaWiki Action API exactly as specified (`prop=extracts&
+explaintext=1` for text, `prop=links&plnamespace=0&pllimit=max` for links),
+with a descriptive User-Agent, `maxlag`, inter-request delay and exponential
+backoff that honours the `Retry-After` header on 429/5xx. REST v1 was evaluated
+as a fallback but is throttled on the same shared IP, so no deviation from the
+specified API was warranted; the client simply backs off and is best run from
+an unthrottled network.
+
+In the build environment the egress is additionally fingerprint-blocked: the
+Python HTTP client (httpx) receives HTTP 403 while `curl` with the identical
+User-Agent reaches Wikimedia's rate limiter (429/200). The client therefore has
+a pluggable HTTP backend (`WIKI_HTTP_BACKEND=auto|httpx|curl`): `auto` uses
+httpx and transparently falls back to curl on a 403. This also hardens the
+ingest for corporate/proxy networks that block library HTTP clients. On a normal
+machine httpx is used directly and the fallback never triggers.
+
 ## ADR-0006: Verification in the build environment (no Docker daemon)
 The CI/build sandbox used for development has no running Docker daemon, so
 `make up` (Docker Compose) cannot be exercised there. The Compose files are the

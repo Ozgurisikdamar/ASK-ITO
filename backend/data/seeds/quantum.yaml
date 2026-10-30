@@ -1,0 +1,24 @@
+# Quantum computing seed branch. All entries are topics (expansion sources).
+# A page that is also a Nobel seed (e.g. Quantum entanglement, Josephson effect,
+# Superconducting quantum computing) is assigned to 'nobel' and flagged
+# also_quantum; the ingest resolves such overlaps by seed priority.
+domain: quantum
+
+topics:
+  - Quantum computing
+  - Qubit
+  - Superconducting quantum computing
+  - Transmon
+  - Josephson effect
+  - Quantum entanglement
+  - Quantum teleportation
+  - Bell test
+  - Shor's algorithm
+  - Grover's algorithm
+  - Quantum error correction
+  - Quantum supremacy
+  - Sycamore processor
+  - Trapped-ion quantum computer
+  - Linear optical quantum computing
+  - Spin qubit quantum computer
+  - Quantum key distribution

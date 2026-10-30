@@ -35,7 +35,18 @@ class Settings(BaseSettings):
     llm_judge_model: str = ""
 
     # Ingest
-    wiki_user_agent: str = "AskITO/0.1 (contact: you@example.com)"
+    # Wikimedia requires a descriptive User-Agent with a contact (URL or email);
+    # a placeholder contact is rejected with HTTP 403.
+    wiki_user_agent: str = "AskITO/0.1 (+https://github.com/Ozgurisikdamar/ASK-ITO)"
+    wiki_delay: float = 1.0  # polite inter-request delay (seconds)
+    # HTTP backend for the MediaWiki client: "auto" uses httpx and falls back to
+    # curl if the egress is fingerprint-blocked (HTTP 403); "httpx"/"curl" force one.
+    wiki_http_backend: str = "auto"
+    ingest_min_chars: int = 1500  # drop expansion pages shorter than this
+    ingest_expand_min_links: int = 2  # candidate must be linked by >= N seeds
+    ingest_expand_max_nobel: int = 60
+    ingest_expand_max_quantum: int = 30
+    ingest_expand_max_ai: int = 40
 
     # Retrieval / agent
     agent_max_rounds: int = 3

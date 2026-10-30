@@ -1,0 +1,33 @@
+# AI seed branch. The five required core areas plus directly related bridge
+# articles. Several bridge to the 2024 Nobel prizes (deep learning, Hopfield
+# networks, AlphaFold). All entries are topics (expansion sources).
+domain: ai
+
+core:
+  # 1. Computer vision / image processing
+  - Computer vision
+  - Digital image processing
+  # 2. Transformers & large language models
+  - Transformer (deep learning architecture)
+  - Large language model
+  - Attention (machine learning)
+  # 3. Retrieval-augmented generation
+  - Retrieval-augmented generation
+  # 4. Autonomous AI agents
+  - Intelligent agent
+  - Agentic AI
+  # 5. Deep learning
+  - Deep learning
+  - Artificial neural network
+
+related:
+  - Machine learning
+  - Artificial intelligence
+  - Convolutional neural network
+  - Recurrent neural network
+  - Generative artificial intelligence
+  - Generative pre-trained transformer
+  - Reinforcement learning
+  - Natural language processing
+  - Self-supervised learning
+  - Diffusion model

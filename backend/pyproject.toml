@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.6,<3",
     "psycopg[binary]>=3.2,<4",
     "httpx>=0.27,<0.29",
+    "PyYAML>=6.0,<7",
 ]
 
 # Heavy retrieval / ML dependencies are introduced in later milestones (M3+):
