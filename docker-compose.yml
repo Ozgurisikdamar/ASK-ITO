@@ -33,7 +33,9 @@ services:
   frontend:
     build: ./frontend
     environment:
-      VITE_API_BASE: http://localhost:8000
+      # vite's dev-server proxy runs inside this container, so /api is proxied
+      # to the backend service over the compose network (not localhost).
+      VITE_API_BASE: http://backend:8000
     depends_on:
       - backend
     ports:
