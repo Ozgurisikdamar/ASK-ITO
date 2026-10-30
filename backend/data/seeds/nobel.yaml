@@ -41,14 +41,14 @@ years:
       laureates: [John Hopfield, Geoffrey Hinton]
       topics: [Hopfield network, Boltzmann machine]
     chemistry:
-      laureates: [David Baker (biochemist), Demis Hassabis, John Jumper]
+      laureates: [David Baker (biochemist), Demis Hassabis, John M. Jumper]
       topics: [AlphaFold, Protein design]
     medicine:
       laureates: [Victor Ambros, Gary Ruvkun]
       topics: [MicroRNA, Lin-4 microRNA precursor]
   "2025":
     physics:
-      laureates: [John Clarke (physicist), Michel Devoret, John Martinis]
+      laureates: [John Clarke (physicist), Michel Devoret, John M. Martinis]
       topics: [Macroscopic quantum phenomena, Josephson effect, Superconducting quantum computing]
     chemistry:
       laureates: [Susumu Kitagawa, Richard Robson (chemist), Omar M. Yaghi]
