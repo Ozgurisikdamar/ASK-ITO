@@ -111,6 +111,85 @@ export async function postReview(action: {
   return data;
 }
 
+export interface EvalRun {
+  id: number;
+  config_name: string;
+  status: string;
+  started_at: string | null;
+  finished_at: string | null;
+  n_questions: number | null;
+  retrieval: Record<string, number | null>;
+  ragas: Record<string, number | string | null>;
+  operational: { latency_ms?: { p50: number | null; p95: number | null }; avg_llm_calls?: number };
+  behaviour: Record<string, number | null>;
+}
+
+export async function getRuns(): Promise<{ runs: EvalRun[] }> {
+  const r = await fetch("/api/eval/runs");
+  if (!r.ok) throw new Error(`runs failed: ${r.status}`);
+  return r.json();
+}
+
+export interface RunResult {
+  question_id: string;
+  question: string;
+  qtype: string;
+  domain: string;
+  reference: string | null;
+  gold_chunk_ids: number[];
+  gold_doc_ids: number[];
+  answer: string;
+  retrieved_chunk_ids: number[];
+  metrics: Record<string, number | null>;
+  latency_ms: number;
+  llm_calls: number;
+  trace: unknown[];
+}
+
+export interface RunDetail {
+  id: number;
+  config_name: string;
+  status: string;
+  config_json: Record<string, unknown>;
+  summary: Record<string, unknown>;
+  results: RunResult[];
+}
+
+export async function getRunDetail(id: number): Promise<RunDetail> {
+  const r = await fetch(`/api/eval/runs/${id}`);
+  if (!r.ok) throw new Error(`run detail failed: ${r.status}`);
+  return r.json();
+}
+
+export interface CompareRow {
+  question_id: string;
+  qtype: string;
+  a: number;
+  b: number;
+  delta: number;
+}
+
+export async function getCompare(a: number, b: number): Promise<{
+  metric: string;
+  improved: CompareRow[];
+  regressed: CompareRow[];
+}> {
+  const r = await fetch(`/api/eval/compare?a=${a}&b=${b}`);
+  if (!r.ok) throw new Error(`compare failed: ${r.status}`);
+  return r.json();
+}
+
+export async function startRun(configs: string[]): Promise<{ status: string; configs: string[] }> {
+  const r = await fetch("/api/eval/runs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ configs }),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data?.detail || data?.error || "start run failed");
+  return data;
+}
+
 export async function search(
   req: SearchRequest,
   signal?: AbortSignal

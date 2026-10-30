@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import psycopg
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -11,6 +11,99 @@ from app.eval import testset
 from app.retrieval.hydrate import body_without_prefix
 
 router = APIRouter()
+
+
+def _conn():
+    return psycopg.connect(settings.database_url)
+
+
+@router.get("/eval/runs")
+def list_runs():
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, config_name, status, started_at, finished_at, summary "
+            "FROM eval_runs ORDER BY id DESC"
+        ).fetchall()
+    out = []
+    for r in rows:
+        summary = r[5] or {}
+        out.append({
+            "id": r[0], "config_name": r[1], "status": r[2],
+            "started_at": r[3].isoformat() if r[3] else None,
+            "finished_at": r[4].isoformat() if r[4] else None,
+            "retrieval": summary.get("retrieval", {}),
+            "ragas": summary.get("ragas", {}),
+            "operational": summary.get("operational", {}),
+            "behaviour": summary.get("behaviour", {}),
+            "n_questions": summary.get("n_questions"),
+        })
+    return {"runs": out}
+
+
+@router.get("/eval/runs/{run_id}")
+def run_detail(run_id: int):
+    with _conn() as conn:
+        run = conn.execute(
+            "SELECT id, config_name, status, config_json, summary FROM eval_runs WHERE id=%s",
+            (run_id,),
+        ).fetchone()
+        if not run:
+            return JSONResponse(status_code=404, content={"error": "unknown_run"})
+        rows = conn.execute(
+            """SELECT r.question_id, q.question, q.qtype, q.domain, q.reference,
+                      q.gold_chunk_ids, q.gold_doc_ids,
+                      r.answer, r.retrieved_chunk_ids, r.metrics, r.latency_ms, r.llm_calls, r.trace
+               FROM eval_results r JOIN eval_questions q ON q.id = r.question_id
+               WHERE r.run_id=%s ORDER BY r.question_id""",
+            (run_id,),
+        ).fetchall()
+    results = [
+        {"question_id": r[0], "question": r[1], "qtype": r[2], "domain": r[3],
+         "reference": r[4], "gold_chunk_ids": r[5] or [], "gold_doc_ids": r[6] or [],
+         "answer": r[7], "retrieved_chunk_ids": r[8] or [], "metrics": r[9] or {},
+         "latency_ms": r[10], "llm_calls": r[11], "trace": r[12] or []}
+        for r in rows
+    ]
+    return {"id": run[0], "config_name": run[1], "status": run[2],
+            "config_json": run[3] or {}, "summary": run[4] or {}, "results": results}
+
+
+@router.get("/eval/compare")
+def compare(a: int, b: int):
+    metric = "doc_ndcg@10"
+    with _conn() as conn:
+        def fetch(rid):
+            return {r[0]: (r[1] or {}) for r in conn.execute(
+                "SELECT question_id, metrics FROM eval_results WHERE run_id=%s", (rid,)).fetchall()}
+        ma, mb = fetch(a), fetch(b)
+        qinfo = {r[0]: (r[1], r[2]) for r in conn.execute(
+            "SELECT id, qtype, domain FROM eval_questions").fetchall()}
+    rows = []
+    for qid in sorted(set(ma) & set(mb)):
+        va, vb = ma[qid].get(metric), mb[qid].get(metric)
+        if isinstance(va, (int, float)) and isinstance(vb, (int, float)):
+            rows.append({"question_id": qid, "qtype": qinfo.get(qid, ("", ""))[0],
+                         "a": va, "b": vb, "delta": round(vb - va, 4)})
+    rows.sort(key=lambda x: x["delta"])
+    return {"a": a, "b": b, "metric": metric,
+            "improved": [r for r in rows if r["delta"] > 0][-10:][::-1],
+            "regressed": [r for r in rows if r["delta"] < 0][:10]}
+
+
+class RunRequest(BaseModel):
+    configs: list[str]
+
+
+@router.post("/eval/runs")
+def start_run(req: RunRequest, background: BackgroundTasks):
+    from app.eval import run as eval_run
+
+    modes = eval_run.ALL_MODES if req.configs == ["all"] else req.configs
+    bad = [m for m in modes if m not in eval_run.ALL_MODES]
+    if bad:
+        return JSONResponse(status_code=400, content={"error": "bad_configs", "detail": bad})
+    background.add_task(eval_run.run, modes)
+    return {"status": "started", "configs": modes}
 
 
 def _gold_previews(chunk_ids: list[int]) -> list[dict]:

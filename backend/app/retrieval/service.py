@@ -59,5 +59,6 @@ def run_search(
         "sources": sources_out,
         "trace": result.trace_dicts(),
         "rewritten_query": result.rewritten_query,
+        "ranked_chunk_ids": [c for c, _ in result.ranked],
         "timings": timings,
     }

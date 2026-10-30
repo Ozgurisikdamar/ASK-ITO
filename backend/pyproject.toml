@@ -24,6 +24,18 @@ index = [
     "PyStemmer>=2.2,<3",
     "numpy>=1.26,<3",
 ]
+# Evaluation extras (M8). RAGAS is API-version-sensitive; pin it and a
+# compatible langchain stack (see docs/DECISIONS.md).
+eval = [
+    "ragas==0.2.14",
+    "langchain-core<0.4",
+    "langchain<0.4",
+    "langchain-community<0.4",
+    "langchain-openai<0.3",
+    "langchain-huggingface<0.2",
+    "datasets<3",
+    "pysbd>=0.3.4",
+]
 dev = [
     "pytest>=8.3,<9",
     "ruff>=0.7,<0.8",

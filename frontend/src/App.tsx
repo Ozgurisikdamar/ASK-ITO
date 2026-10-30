@@ -1,22 +1,10 @@
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Home } from "./pages/Home";
 import { Results } from "./pages/Results";
 import { EvalReview } from "./pages/EvalReview";
-
-function EvalPlaceholder() {
-  return (
-    <div className="min-h-screen bg-surface p-8 text-content">
-      <Link to="/" className="text-link hover:underline">← Ask ITO</Link>
-      <h1 className="mt-4 text-xl font-bold">Evaluation panel</h1>
-      <p className="mt-2 text-content-muted">
-        The evaluation panel (ablation table, charts, run comparison) is built in
-        milestone M8. The{" "}
-        <Link to="/eval/review" className="text-link hover:underline">test set review</Link>{" "}
-        page is available now.
-      </p>
-    </div>
-  );
-}
+import { EvalPanel } from "./pages/EvalPanel";
+import { RunDetail } from "./pages/RunDetail";
+import { Compare } from "./pages/Compare";
 
 export default function App() {
   return (
@@ -24,8 +12,10 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/search" element={<Results />} />
-        <Route path="/eval" element={<EvalPlaceholder />} />
+        <Route path="/eval" element={<EvalPanel />} />
         <Route path="/eval/review" element={<EvalReview />} />
+        <Route path="/eval/runs/:id" element={<RunDetail />} />
+        <Route path="/eval/compare/:a/:b" element={<Compare />} />
       </Routes>
     </BrowserRouter>
   );

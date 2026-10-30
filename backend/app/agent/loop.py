@@ -156,6 +156,7 @@ def run_agent(
     cand_ids = list(candidates.keys())
     texts = pipeline._chunk_texts(cand_ids)
     reranked = reranker.rerank(query, [(c, texts.get(c, "")) for c in cand_ids])
+    ranked_ids = [c for c, _ in reranked[:30]]  # pre-diversity, for eval
     final = pipeline.apply_diversity(reranked, settings.max_chunks_per_doc, final_k)
     trace.append({
         "step": "final_rerank", "input": query,
@@ -187,5 +188,6 @@ def run_agent(
         "rewritten_query": None,
         "rounds": rounds,
         "llm_calls": counter.n,
+        "ranked_chunk_ids": ranked_ids,
         "timings": {"total": int((_now() - start) * 1000)},
     }

@@ -40,6 +40,7 @@ class PipelineResult:
     trace: list[RetrievalStep]
     rewritten_query: str | None
     timings: dict[str, int]
+    ranked: list[tuple[int, float]] = field(default_factory=list)  # pre-diversity, for eval
 
     def trace_dicts(self) -> list[dict]:
         return [asdict(s) for s in self.trace]
@@ -176,4 +177,4 @@ def run_retrieval(
         ranked = fused
 
     final = apply_diversity(ranked, settings.max_chunks_per_doc, final_k)
-    return PipelineResult(mode, final, trace, rewritten, timings)
+    return PipelineResult(mode, final, trace, rewritten, timings, ranked=ranked[:30])
