@@ -110,6 +110,23 @@ The portable source is `eval/seed_questions.json` (titles + keywords);
 The committed `testset.jsonl` reflects this environment's build; reproduce it
 with `make testset-seed` after indexing.
 
+## ADR-0012: RAGAS pinned; eval runs with or without an LLM judge
+
+RAGAS (mandatory, spec §8.2) is integrated via `app/eval/ragas_eval.py` using the
+project's LLM as the judge (OpenAI-compatible, e.g. Ollama) and the project's
+embedding model. RAGAS' API is version-sensitive, so it is pinned to
+`ragas==0.2.14` with a compatible langchain stack (`langchain* < 0.4`,
+`langchain-openai < 0.3`, `datasets < 3`) in the `eval` extra.
+
+The build environment has no LLM judge, so an eval run here records the four
+RAGAS metrics as empty with a status string ("LLM judge unavailable") and the
+run still completes with full, deterministic retrieval metrics. On a machine
+with a local Ollama the same run returns real RAGAS scores. `docs/EVAL_REPORT.md`
+in this repo is the build-environment run: retrieval metrics are real (reranking
+lifts doc_recall@5 from ~0.69–0.75 to ~0.80), RAGAS columns are blank with the
+note. The retrieval metrics are shown separately from and ahead of RAGAS in the
+panel, as §8.2's zero-budget note recommends.
+
 ## ADR-0006: Verification in the build environment (no Docker daemon)
 The CI/build sandbox used for development has no running Docker daemon, so
 `make up` (Docker Compose) cannot be exercised there. The Compose files are the
