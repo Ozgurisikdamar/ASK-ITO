@@ -48,7 +48,22 @@ class Settings(BaseSettings):
     ingest_expand_max_quantum: int = 30
     ingest_expand_max_ai: int = 40
 
+    # Chunking (M3)
+    chunk_target_tokens: int = 400
+    chunk_overlap_tokens: int = 60  # ~15% of target
+    # bge query instruction prefix (added to queries only, not passages)
+    query_instruction: str = "Represent this sentence for searching relevant passages: "
+
+    # BM25 (bm25s) parameters
+    bm25_k1: float = 1.5
+    bm25_b: float = 0.75
+
     # Retrieval / agent
+    bm25_top_k: int = 50
+    vector_top_k: int = 50
+    rrf_k: int = 60
+    rerank_pool: int = 30
+    max_chunks_per_doc: int = 2
     agent_max_rounds: int = 3
     final_k: int = 5
 

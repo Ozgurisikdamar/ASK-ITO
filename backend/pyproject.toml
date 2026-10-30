@@ -13,10 +13,17 @@ dependencies = [
     "PyYAML>=6.0,<7",
 ]
 
-# Heavy retrieval / ML dependencies are introduced in later milestones (M3+):
-#   sentence-transformers, bm25s, ragas, datasets, numpy, scikit-learn
-# They are kept out of the core install so the skeleton stays light to run.
+# Retrieval / embedding dependencies (M3). Install CPU torch from the PyTorch
+# CPU index to avoid pulling CUDA wheels:
+#   pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.2,<3"
+#   pip install -e ".[index]"
 [project.optional-dependencies]
+index = [
+    "sentence-transformers>=3.0,<4",
+    "bm25s>=0.2,<0.3",
+    "PyStemmer>=2.2,<3",
+    "numpy>=1.26,<3",
+]
 dev = [
     "pytest>=8.3,<9",
     "ruff>=0.7,<0.8",
