@@ -1,0 +1,13 @@
+Decide whether the collected context is enough to fully answer the question.
+Do not answer the question itself.
+
+Return ONLY a JSON object:
+{"sufficient": true | false, "missing": "<what is still missing, short>", "next_query": "<a search query to find the missing information, or null>"}
+
+If the context already covers the question, set "sufficient" to true and
+"next_query" to null.
+
+Question: {question}
+
+Context:
+{context}

@@ -7,10 +7,26 @@ from __future__ import annotations
 
 import time
 
-from app.agent.answer import build_sources, generate_answer
+from app.agent.answer import Source, build_sources, generate_answer
 from app.config import settings
 from app.llm.client import LLMClient
 from app.retrieval import hydrate, pipeline
+
+
+def sources_payload(sources: list[Source], query: str) -> list[dict]:
+    out = []
+    for s in sources:
+        info = s.info
+        out.append({
+            "chunk_id": s.chunk_id,
+            "doc_title": info.doc_title,
+            "section": info.section,
+            "url": info.url,
+            "domain": info.domain,
+            "score": round(float(s.score), 6),
+            "snippet": hydrate.make_snippet(info.text, query),
+        })
+    return out
 
 
 def run_search(
@@ -25,24 +41,12 @@ def run_search(
 
     infos = hydrate.fetch_chunks([cid for cid, _ in result.final])
     sources = build_sources(result.final, infos)
-    score_of = dict(result.final)
 
     ta = time.perf_counter()
     answer, citations = generate_answer(query, sources, llm=llm)
     answer_ms = int((time.perf_counter() - ta) * 1000)
 
-    sources_out = []
-    for s in sources:
-        info = s.info
-        sources_out.append({
-            "chunk_id": s.chunk_id,
-            "doc_title": info.doc_title,
-            "section": info.section,
-            "url": info.url,
-            "domain": info.domain,
-            "score": round(float(score_of.get(s.chunk_id, 0.0)), 6),
-            "snippet": hydrate.make_snippet(info.text, query),
-        })
+    sources_out = sources_payload(sources, query)
 
     timings = dict(result.timings)
     timings["answer"] = answer_ms

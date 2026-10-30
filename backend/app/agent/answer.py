@@ -21,16 +21,17 @@ class Source:
     n: int
     chunk_id: int
     info: ChunkInfo
+    score: float = 0.0
 
 
 def build_sources(final: list[tuple[int, float]], infos: dict[int, ChunkInfo]) -> list[Source]:
     sources: list[Source] = []
     n = 1
-    for cid, _score in final:
+    for cid, score in final:
         info = infos.get(cid)
         if info is None:
             continue
-        sources.append(Source(n=n, chunk_id=cid, info=info))
+        sources.append(Source(n=n, chunk_id=cid, info=info, score=score))
         n += 1
     return sources
 

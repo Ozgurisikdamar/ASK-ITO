@@ -1,0 +1,14 @@
+Analyse the user's question for a retrieval system over Wikipedia articles
+about recent Nobel Prizes, quantum computing and AI.
+
+Classify it and, if answering needs several distinct pieces of information,
+break it into 2-4 focused sub-questions. Keep entity names and key terms.
+
+Return ONLY a JSON object:
+{"qtype": "simple" | "multi_hop" | "comparison", "subquestions": ["...", "..."]}
+
+- simple: a single fact; "subquestions" may be empty.
+- multi_hop: needs linking facts from different articles.
+- comparison: compares two or more entities (dates, ages, numbers, ...).
+
+Question: {question}

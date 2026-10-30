@@ -11,6 +11,8 @@ from app.retrieval.service import run_search
 
 router = APIRouter()
 
+VALID_MODES = pipeline.RETRIEVAL_MODES + ["agentic"]
+
 
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1)
@@ -21,18 +23,11 @@ class SearchRequest(BaseModel):
 
 @router.post("/search")
 def search(req: SearchRequest):
-    if req.mode == "agentic":
-        # The agentic loop is implemented in M5.
-        return JSONResponse(
-            status_code=501,
-            content={"error": "not_implemented",
-                     "detail": "agentic mode is implemented in M5; use a retrieval mode"},
-        )
-    if req.mode not in pipeline.RETRIEVAL_MODES:
+    if req.mode not in VALID_MODES:
         return JSONResponse(
             status_code=400,
             content={"error": "bad_mode",
-                     "detail": f"unknown mode '{req.mode}'; valid: {pipeline.RETRIEVAL_MODES}"},
+                     "detail": f"unknown mode '{req.mode}'; valid: {VALID_MODES}"},
         )
     if req.domain not in ("all", "nobel", "quantum", "ai"):
         return JSONResponse(
@@ -40,6 +35,10 @@ def search(req: SearchRequest):
             content={"error": "bad_domain", "detail": "domain must be all|nobel|quantum|ai"},
         )
     try:
+        if req.mode == "agentic":
+            from app.agent.loop import run_agent
+
+            return run_agent(req.query, req.domain, req.final_k or settings.final_k)
         return run_search(req.query, req.mode, req.domain, req.final_k or settings.final_k)
     except Exception as exc:  # noqa: BLE001
         return JSONResponse(

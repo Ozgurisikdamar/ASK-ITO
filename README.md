@@ -23,6 +23,9 @@ Under construction, milestone by milestone (see the project spec §12).
 - **M4 — retrieval pipeline**: all non-agentic modes (closed_book, bm25, vector,
   hybrid, hybrid_rerank, hybrid_rerank_rewrite) with cross-encoder reranking,
   document diversity, step trace, and `POST /api/search`. ✅
+- **M5 — agentic layer**: question analysis + sub-questions, multi-round
+  hybrid_rerank search with sufficiency checks, citation validation, bounded
+  LLM calls, full trace; `agentic` mode wired into `/api/search`. ✅
 
 ## Stack
 

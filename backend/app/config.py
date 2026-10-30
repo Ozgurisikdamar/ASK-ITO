@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     rerank_pool: int = 30
     max_chunks_per_doc: int = 2
     agent_max_rounds: int = 3
+    agent_max_llm_calls: int = 10
+    agent_timeout_s: int = 180
+    agent_answer_temperature: float = 0.0
+    agent_max_subquestions: int = 4
     final_k: int = 5
 
     # CORS
