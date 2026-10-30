@@ -65,6 +65,52 @@ export interface SearchRequest {
   final_k?: number;
 }
 
+export interface GoldChunk {
+  chunk_id: number;
+  doc_title: string;
+  section: string | null;
+  snippet: string;
+}
+
+export interface ReviewItem {
+  id: string;
+  question: string;
+  reference: string | null;
+  qtype: string;
+  domain: string;
+  gold_doc_ids: number[];
+  gold_chunk_ids: number[];
+  status: "pending" | "accepted" | "rejected";
+  gold_chunks: GoldChunk[];
+}
+
+export interface ReviewResponse {
+  items: ReviewItem[];
+  summary: { total: number; accepted: number; rejected: number; pending: number };
+}
+
+export async function getReview(): Promise<ReviewResponse> {
+  const resp = await fetch("/api/eval/review");
+  if (!resp.ok) throw new Error(`review request failed: ${resp.status}`);
+  return resp.json();
+}
+
+export async function postReview(action: {
+  id: string;
+  action: "accept" | "reject";
+  question?: string;
+  reference?: string | null;
+}): Promise<{ id: string; status: string; accepted_total: number }> {
+  const resp = await fetch("/api/eval/review", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(action),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data?.detail || data?.error || "review update failed");
+  return data;
+}
+
 export async function search(
   req: SearchRequest,
   signal?: AbortSignal

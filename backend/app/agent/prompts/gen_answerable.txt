@@ -1,0 +1,16 @@
+You are creating an evaluation question for a QA system over English Wikipedia
+articles about recent Nobel Prizes, quantum computing and AI.
+
+{task}
+
+Rules:
+- The question must be answerable using ONLY the context passage(s) below.
+- It must be factual and specific; keep entity names.
+- Do NOT use time-relative phrasing ("current", "latest", "most ... so far",
+  "now", "today"). Such questions are forbidden.
+- The reference answer must be concise and supported by the context.
+
+Return ONLY a JSON object: {"question": "...", "reference": "..."}
+
+Context:
+{context}

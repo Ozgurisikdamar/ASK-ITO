@@ -93,6 +93,23 @@ normalisation between the two very different score scales. The Qdrant 1.20 notes
 (docs/REFERENCES.md) explicitly leave fusion to the implementer; RRF vs weighted
 fusion is left as an A/B comparison for the evaluation panel (M8).
 
+## ADR-0011: Hand-authored seed test set; portable source
+
+Generating the full test set (spec §8.1, ≥150 questions) needs a real LLM for
+question generation and a human for review. The build environment has no LLM,
+so M7 ships: (a) the LLM-based generator (`make testset-draft`) and the review
+endpoints/UI, verified mechanically; and (b) a hand-authored seed of ~46 real,
+reviewed questions covering the §8.1 type distribution, so the evaluation (M8)
+can run here. The remaining questions to ≥150 are produced with
+`make testset-draft` + review on a machine with a local LLM.
+
+`gold_doc_ids`/`gold_chunk_ids` are DB serial ids, specific to an index build.
+The portable source is `eval/seed_questions.json` (titles + keywords);
+`make testset-seed` re-resolves the gold ids against the local DB and writes
+`eval/testset.jsonl`, and `make testset-load` loads it into `eval_questions`.
+The committed `testset.jsonl` reflects this environment's build; reproduce it
+with `make testset-seed` after indexing.
+
 ## ADR-0006: Verification in the build environment (no Docker daemon)
 The CI/build sandbox used for development has no running Docker daemon, so
 `make up` (Docker Compose) cannot be exercised there. The Compose files are the

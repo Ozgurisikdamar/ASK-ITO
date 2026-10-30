@@ -32,8 +32,11 @@ models/
 *.bin
 *.safetensors
 
-# Draft testset (only reviewed testset.jsonl is committed)
+# Draft testset + review working state + eval LLM cache
+# (seed_questions.json and the reviewed testset.jsonl ARE committed)
 backend/eval/testset.draft.jsonl
+backend/eval/testset.review.json
+backend/eval/.llm_cache/
 
 # OS
 .DS_Store

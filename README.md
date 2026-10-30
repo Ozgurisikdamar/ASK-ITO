@@ -30,6 +30,9 @@ Under construction, milestone by milestone (see the project spec §12).
   scroll to and highlight the source, source cards (domain badge, snippet,
   score, link), "How it searched" trace panel, loading/error states, dark theme
   and mobile layout. ✅
+- **M7 — test set**: LLM draft generator (`make testset-draft`), review API +
+  `/eval/review` page (accept/edit/reject), loader into `eval_questions`, and a
+  hand-authored seed of ~46 reviewed questions (§8.1 distribution). ✅
 
 ## Stack
 

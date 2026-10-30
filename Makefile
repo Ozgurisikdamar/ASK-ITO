@@ -22,8 +22,14 @@ ingest: ## [M2] Resolve seeds, fetch, expand, clean (snapshot)
 index: ## [M3] Chunk, embed, write pgvector + build BM25 index
 	$(COMPOSE) exec backend python -m app.index.run
 
-testset-draft: ## [M7] Generate draft eval test set
+testset-draft: ## [M7] Generate draft eval test set (needs an LLM)
 	$(COMPOSE) exec backend python -m app.eval.testset_draft
+
+testset-seed: ## [M7] Build the hand-authored seed test set into testset.jsonl
+	$(COMPOSE) exec backend python -m app.eval.build_seed
+
+testset-load: ## [M7] Load reviewed testset.jsonl into eval_questions
+	$(COMPOSE) exec backend python -m app.eval.load_testset
 
 eval: ## [M8] Run evaluation (CONFIGS=all | hybrid,agentic)
 	$(COMPOSE) exec backend python -m app.eval.run --configs $(CONFIGS)

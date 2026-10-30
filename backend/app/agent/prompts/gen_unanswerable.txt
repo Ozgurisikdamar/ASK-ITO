@@ -1,0 +1,12 @@
+You are creating an "unanswerable" evaluation question for a QA system over a
+focused English Wikipedia corpus on recent Nobel Prizes, quantum computing and
+AI.
+
+Write ONE question that sounds on-topic for {domain} but whose answer is very
+unlikely to be present in such a corpus (for example, an overly specific
+personal detail, an unrelated minor fact, or something outside the covered
+scope). The correct behaviour of the system is to say it cannot be found.
+
+Do NOT use time-relative phrasing. Do not provide an answer.
+
+Return ONLY a JSON object: {"question": "..."}

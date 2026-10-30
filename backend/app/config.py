@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     agent_max_subquestions: int = 4
     final_k: int = 5
 
+    # Test set generation (M7)
+    testset_target: int = 180  # total draft questions to aim for
+    llm_cache_enabled: bool = True  # disk cache for eval LLM calls
+
     # CORS
     frontend_origin: str = "http://localhost:5173"
 
