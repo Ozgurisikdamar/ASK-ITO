@@ -20,6 +20,9 @@ Under construction, milestone by milestone (see the project spec §12).
   cleaning, snapshot. Corpus: 258 documents (nobel / quantum / ai). ✅
 - **M3 — indexing**: section-aware chunking, bge embeddings in pgvector (HNSW),
   BM25 (bm25s). 5,988 chunks; bm25 / vector / hybrid retrieval working. ✅
+- **M4 — retrieval pipeline**: all non-agentic modes (closed_book, bm25, vector,
+  hybrid, hybrid_rerank, hybrid_rerank_rewrite) with cross-encoder reranking,
+  document diversity, step trace, and `POST /api/search`. ✅
 
 ## Stack
 

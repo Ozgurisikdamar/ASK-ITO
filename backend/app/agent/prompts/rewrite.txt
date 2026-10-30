@@ -1,0 +1,7 @@
+Rewrite the user's question into a single search query optimised for keyword
+and semantic retrieval over Wikipedia articles. Preserve entity names and key
+technical terms; drop conversational filler. Do not answer the question.
+
+Return ONLY a JSON object: {"query": "<rewritten search query>"}
+
+Question: {question}

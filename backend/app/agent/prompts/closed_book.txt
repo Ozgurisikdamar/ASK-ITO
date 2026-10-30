@@ -1,0 +1,6 @@
+Answer the following question concisely and directly, using your own knowledge.
+If you are not sure, say so.
+
+Question: {question}
+
+Answer:
