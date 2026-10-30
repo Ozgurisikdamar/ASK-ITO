@@ -74,6 +74,25 @@ httpx and transparently falls back to curl on a 403. This also hardens the
 ingest for corporate/proxy networks that block library HTTP clients. On a normal
 machine httpx is used directly and the fallback never triggers.
 
+## ADR-0009: Expansion ranking by distinct-seed link count
+
+Spec §3.3 ranks expansion candidates by combining an embedding-cosine relevance
+(candidate lead vs domain centroid) with the number of distinct seeds linking to
+the candidate. The M2 ingest ranks by the distinct-seed link count alone
+(threshold ≥ 2, per-domain budgets). With the curated seed-heavy corpus this is
+a strong, deterministic signal and keeps ingest independent of the embedding
+model. The snapshot is frozen, so the produced corpus (258 docs) reflects this
+ranking. Adding the embedding-cosine component is a possible future refinement;
+it would only change which expansion candidates are selected, not the pipeline.
+
+## ADR-0010: Reciprocal Rank Fusion for hybrid retrieval
+
+BM25 and dense results are combined with Reciprocal Rank Fusion (k = 60, spec
+§5 step 3) rather than weighted score addition. RRF needs no score
+normalisation between the two very different score scales. The Qdrant 1.20 notes
+(docs/REFERENCES.md) explicitly leave fusion to the implementer; RRF vs weighted
+fusion is left as an A/B comparison for the evaluation panel (M8).
+
 ## ADR-0006: Verification in the build environment (no Docker daemon)
 The CI/build sandbox used for development has no running Docker daemon, so
 `make up` (Docker Compose) cannot be exercised there. The Compose files are the
