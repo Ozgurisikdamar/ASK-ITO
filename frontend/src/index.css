@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Theme tokens (spec §10.1). Components reference these via Tailwind color
+   names (brand-700, surface, ...) and never use raw hex.
+   Light is the default. Dark applies when the OS prefers dark (unless the user
+   forced light) or when data-theme="dark" is set explicitly by the toggle.
+--------------------------------------------------------------------------- */
+:root {
+  --brand-900: #2e1065;
+  --brand-700: #5b21b6;
+  --brand-500: #8b5cf6;
+  --lilac-300: #c4b5fd;
+  --mauve-200: #e9d5ff;
+  --surface: #fbf8ff;
+  --surface-raised: #ffffff;
+  --text: #1f1530;
+  --text-muted: #6b5e80;
+  /* link color: brand-700 in light; brightened in dark for WCAG AA */
+  --link: #5b21b6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --brand-900: #2e1065;
+    --brand-700: #7c3aed;
+    --brand-500: #a78bfa;
+    --lilac-300: #6d28d9;
+    --mauve-200: #3b1f5c;
+    --surface: #120a1f;
+    --surface-raised: #1c1230;
+    --text: #ede7f6;
+    --text-muted: #a99bc2;
+    --link: #a78bfa;
+  }
+}
+
+:root[data-theme="dark"] {
+  --brand-900: #2e1065;
+  --brand-700: #7c3aed;
+  --brand-500: #a78bfa;
+  --lilac-300: #6d28d9;
+  --mauve-200: #3b1f5c;
+  --surface: #120a1f;
+  --surface-raised: #1c1230;
+  --text: #ede7f6;
+  --text-muted: #a99bc2;
+  --link: #a78bfa;
+}
+
+body {
+  margin: 0;
+  background-color: var(--surface);
+  color: var(--text);
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+/* Visible focus ring on all interactive elements (accessibility). */
+*:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
