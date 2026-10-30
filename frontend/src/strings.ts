@@ -28,4 +28,16 @@ export const strings = {
   corpusLoading: "Loading corpus info…",
   corpusEmpty: "Corpus not indexed yet.",
   themeToggleAria: "Toggle dark mode",
+  results: {
+    sources: "Sources",
+    howItSearched: "How it searched",
+    copy: "Copy",
+    copied: "Copied",
+    searching: "Searching…",
+    notFoundPhrase: "could not find",
+    noAnswer: "No answer was produced.",
+    errorTitle: "Something went wrong",
+    sourceAria: (n: number) => `Jump to source ${n}`,
+    openWiki: "Wikipedia",
+  },
 };

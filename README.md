@@ -26,6 +26,10 @@ Under construction, milestone by milestone (see the project spec §12).
 - **M5 — agentic layer**: question analysis + sub-questions, multi-round
   hybrid_rerank search with sufficiency checks, citation validation, bounded
   LLM calls, full trace; `agentic` mode wired into `/api/search`. ✅
+- **M6 — search UI**: results page with answer card + clickable citations that
+  scroll to and highlight the source, source cards (domain badge, snippet,
+  score, link), "How it searched" trace panel, loading/error states, dark theme
+  and mobile layout. ✅
 
 ## Stack
 
