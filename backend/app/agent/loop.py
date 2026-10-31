@@ -25,9 +25,13 @@ class _CountingLLM:
         self.n = 0
         self.max = max_calls
 
-    def chat(self, messages, temperature: float = 0.0, model=None) -> str:
+    def chat(self, messages, **kw) -> str:
         self.n += 1
-        return self._llm.chat(messages, temperature=temperature, model=model)
+        return self._llm.chat(messages, **kw)
+
+    def stream_chat(self, messages, **kw):
+        self.n += 1
+        yield from self._llm.stream_chat(messages, **kw)
 
     def ping(self):
         return self._llm.ping()

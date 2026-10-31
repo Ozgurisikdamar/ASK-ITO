@@ -18,21 +18,26 @@ class CachedLLM:
         if self.enabled:
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    def _key(self, messages, temperature, model) -> str:
+    def _key(self, messages, kw) -> str:
         blob = json.dumps(
-            {"m": messages, "t": temperature, "model": model}, sort_keys=True, ensure_ascii=False
+            {"m": messages, "kw": {k: v for k, v in kw.items() if k != "cancel"},
+             "model": kw.get("model") or settings.model_for("answer")},
+            sort_keys=True, ensure_ascii=False, default=str,
         )
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
-    def chat(self, messages, temperature: float = 0.0, model=None) -> str:
+    def chat(self, messages, **kw) -> str:
         if not self.enabled:
-            return self._llm.chat(messages, temperature=temperature, model=model)
-        path = CACHE_DIR / f"{self._key(messages, temperature, model)}.txt"
+            return self._llm.chat(messages, **kw)
+        path = CACHE_DIR / f"{self._key(messages, kw)}.txt"
         if path.exists():
             return path.read_text(encoding="utf-8")
-        resp = self._llm.chat(messages, temperature=temperature, model=model)
+        resp = self._llm.chat(messages, **kw)
         path.write_text(resp, encoding="utf-8")
         return resp
+
+    def stream_chat(self, messages, **kw):
+        yield self.chat(messages, **{k: v for k, v in kw.items() if k != "cancel"})
 
     def ping(self):
         return self._llm.ping()

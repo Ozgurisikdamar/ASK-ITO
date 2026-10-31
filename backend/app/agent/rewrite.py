@@ -12,7 +12,12 @@ def rewrite_query(query: str, llm: LLMClient | None = None) -> str:
     llm = llm or get_llm_client()
     prompt = load("rewrite").replace("{question}", query)
     try:
-        raw = llm.chat([{"role": "user", "content": prompt}], temperature=0.0)
+        from app.config import settings
+
+        raw = llm.chat(
+            [{"role": "user", "content": prompt}], temperature=0.0,
+            model=settings.model_for("agent"), json_mode=True, max_tokens=120,
+        )
         rewritten = _parse(raw)
         return rewritten or query
     except Exception:  # noqa: BLE001

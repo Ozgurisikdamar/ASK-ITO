@@ -13,12 +13,14 @@ from functools import lru_cache
 from typing import Callable
 
 from app.config import settings
+from app.ml import configure_torch, inference_lock
 
 
 @lru_cache(maxsize=1)
 def _model():
     from sentence_transformers import SentenceTransformer
 
+    configure_torch()
     return SentenceTransformer(settings.embedding_model, device="cpu")
 
 
@@ -41,8 +43,14 @@ def embed_passages(texts: list[str], batch_size: int = 32) -> list[list[float]]:
 
 
 def embed_query(text: str) -> list[float]:
-    vec = _model().encode(
-        settings.query_instruction + text,
-        normalize_embeddings=True, convert_to_numpy=True,
-    )
+    model = _model()
+    with inference_lock:
+        vec = model.encode(
+            settings.query_instruction + text,
+            normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False,
+        )
     return vec.tolist()
+
+
+def warmup() -> None:
+    embed_query("warm up")

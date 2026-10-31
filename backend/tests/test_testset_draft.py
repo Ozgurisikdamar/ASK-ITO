@@ -24,7 +24,7 @@ class ScriptedLLM:
     def ping(self):
         return True, "scripted"
 
-    def chat(self, messages, temperature=0.0, model=None):
+    def chat(self, messages, temperature=0.0, model=None, **kwargs):
         p = messages[-1]["content"]
         if "unanswerable" in p.lower():
             return '{"question": "An obscure unanswerable question?"}'

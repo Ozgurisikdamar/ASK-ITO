@@ -11,7 +11,7 @@ class _LLM:
     def __init__(self, replies):
         self.replies = list(replies)
 
-    def chat(self, messages, temperature=0.0, model=None):
+    def chat(self, messages, temperature=0.0, model=None, **kwargs):
         return self.replies.pop(0)
 
     def ping(self):

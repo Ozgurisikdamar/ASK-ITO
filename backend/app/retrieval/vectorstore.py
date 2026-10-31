@@ -7,9 +7,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
-import psycopg
-
 from app.config import settings
+from app.db.connection import get_connection
 
 
 def to_pgvector(vec: list[float]) -> str:
@@ -25,9 +24,6 @@ class VectorStore(Protocol):
 
 
 class PgVectorStore:
-    def __init__(self, dsn: str | None = None) -> None:
-        self.dsn = dsn or settings.database_url
-
     def search(
         self, query_embedding: list[float], k: int, domain: str | None = None
     ) -> list[tuple[int, float]]:
@@ -41,6 +37,9 @@ class PgVectorStore:
             LIMIT %(k)s
         """
         params = {"vec": vec, "k": k, "domain": domain}
-        with psycopg.connect(self.dsn) as conn:
+        # HNSW returns at most ef_search rows (default 40); raise it so top-k is honoured.
+        ef = max(settings.hnsw_ef_search, k)
+        with get_connection() as conn, conn.transaction():
+            conn.execute(f"SET LOCAL hnsw.ef_search = {int(ef)}")
             rows = conn.execute(sql, params).fetchall()
         return [(int(r[0]), float(r[1])) for r in rows]

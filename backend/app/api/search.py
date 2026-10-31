@@ -15,10 +15,10 @@ VALID_MODES = pipeline.RETRIEVAL_MODES + ["agentic"]
 
 
 class SearchRequest(BaseModel):
-    query: str = Field(min_length=1)
-    mode: str = "agentic"
+    query: str = Field(min_length=1, max_length=500)
+    mode: str = Field(default_factory=lambda: settings.default_mode)
     domain: str = "all"
-    final_k: int | None = None
+    final_k: int | None = Field(default=None, ge=1, le=20)
 
 
 @router.post("/search")
@@ -39,7 +39,7 @@ def search(req: SearchRequest):
             from app.agent.loop import run_agent
 
             return run_agent(req.query, req.domain, req.final_k or settings.final_k)
-        return run_search(req.query, req.mode, req.domain, req.final_k or settings.final_k)
+        return run_search(req.query, req.mode, req.domain, req.final_k)
     except Exception as exc:  # noqa: BLE001
         return JSONResponse(
             status_code=500, content={"error": "search_failed", "detail": str(exc)}

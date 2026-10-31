@@ -1,12 +1,10 @@
-"""Fetch chunk/document details for a set of chunk ids (order preserved)."""
+"""Chunk/document details for result display, plus snippet helpers."""
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 
-import psycopg
-
-from app.config import settings
+from app.retrieval.store import store
 
 
 @dataclass
@@ -21,18 +19,14 @@ class ChunkInfo:
 
 
 def fetch_chunks(chunk_ids: list[int]) -> dict[int, ChunkInfo]:
+    """Chunk + document details from the in-memory store (no DB round trip)."""
     if not chunk_ids:
         return {}
-    sql = """
-        SELECT c.id, c.doc_id, d.title, c.section, d.url, c.domain, c.text
-        FROM chunks c JOIN documents d ON d.id = c.doc_id
-        WHERE c.id = ANY(%s)
-    """
-    out: dict[int, ChunkInfo] = {}
-    with psycopg.connect(settings.database_url) as conn:
-        for r in conn.execute(sql, (chunk_ids,)).fetchall():
-            out[int(r[0])] = ChunkInfo(int(r[0]), int(r[1]), r[2], r[3], r[4], r[5], r[6])
-    return out
+    store.ensure_loaded()
+    return {
+        cid: ChunkInfo(m.chunk_id, m.doc_id, m.doc_title, m.section, m.url, m.domain, m.text)
+        for cid, m in store.many(chunk_ids).items()
+    }
 
 
 def body_without_prefix(text: str) -> str:

@@ -72,21 +72,32 @@ def _check_bm25() -> dict:
     return {"status": "ok" if exists else "absent", "path": str(BM25_DIR)}
 
 
+def _model_status(step: str) -> str:
+    from app.warmup import state
+
+    if not _lib_installed("sentence_transformers"):
+        return "not_installed"
+    if step in state["steps"]:
+        return "ok"
+    if state["status"] == "error":
+        return "error"
+    return "loading" if state["status"] == "warming" else "not_loaded"
+
+
 def _check_embedding() -> dict:
-    installed = _lib_installed("sentence_transformers")
     return {
-        "status": "ok" if installed else "not_installed",
+        "status": _model_status("embedding"),
         "model": settings.embedding_model,
         "dim": settings.embedding_dim,
     }
 
 
 def _check_reranker() -> dict:
-    installed = _lib_installed("sentence_transformers")
-    return {
-        "status": "ok" if installed else "not_installed",
-        "model": settings.reranker_model,
-    }
+    from app.retrieval import reranker
+
+    st = reranker.status()
+    status = "error" if st["error"] else _model_status("reranker")
+    return {"status": status, "model": settings.reranker_model, "error": st["error"]}
 
 
 def _check_ragas() -> dict:
@@ -106,6 +117,7 @@ def _check_llm() -> dict:
     return {
         "status": "ok" if ok else "unavailable",
         "mode": settings.llm_mode,
+        "model": settings.model_for("answer"),
         "detail": msg,
     }
 
@@ -126,4 +138,11 @@ def health() -> dict:
         "chunks": components["db"].get("chunks", 0),
         "snapshot_at": components["db"].get("snapshot_at"),
     }
-    return {"status": overall, "components": components, "corpus": corpus}
+    from app.warmup import state
+
+    return {
+        "status": overall, "components": components, "corpus": corpus,
+        "warmup": {"status": state["status"], "steps": state["steps"],
+                   "error": state["error"], "prewarm": state["prewarm"]},
+        "default_mode": settings.default_mode,
+    }

@@ -8,6 +8,8 @@ for indexing and querying (consistent analysis, per the Qdrant-1.20 note).
 from __future__ import annotations
 
 import json
+import threading
+from functools import lru_cache
 from pathlib import Path
 
 import bm25s
@@ -19,6 +21,7 @@ IDS_FILE = BM25_DIR / "chunk_ids.json"
 META_FILE = BM25_DIR / "_meta.json"
 
 
+@lru_cache(maxsize=1)
 def _stemmer():
     try:
         import Stemmer  # PyStemmer
@@ -26,6 +29,15 @@ def _stemmer():
         return Stemmer.Stemmer("english")
     except Exception:  # noqa: BLE001
         return None
+
+
+def index_version() -> str:
+    """Changes whenever `make index` rebuilds the index (used to invalidate caches)."""
+    try:
+        st = META_FILE.stat()
+        return f"{st.st_mtime_ns}-{st.st_size}"
+    except FileNotFoundError:
+        return "none"
 
 
 def _tokenize(texts: list[str]):
@@ -65,3 +77,20 @@ class Bm25Searcher:
 
 def exists() -> bool:
     return IDS_FILE.exists() and META_FILE.exists()
+
+
+_searcher: Bm25Searcher | None = None
+_searcher_version: str | None = None
+_searcher_lock = threading.Lock()
+
+
+def get_searcher() -> Bm25Searcher:
+    """Process-wide searcher, reloaded when the index version changes."""
+    global _searcher, _searcher_version
+    version = index_version()
+    if _searcher is None or _searcher_version != version:
+        with _searcher_lock:
+            if _searcher is None or _searcher_version != version:
+                _searcher = Bm25Searcher()
+                _searcher_version = version
+    return _searcher

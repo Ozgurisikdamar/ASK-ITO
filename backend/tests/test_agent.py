@@ -32,7 +32,7 @@ class ScriptedLLM:
     def ping(self):
         return True, "scripted"
 
-    def chat(self, messages, temperature=0.0, model=None):
+    def chat(self, messages, temperature=0.0, model=None, **kwargs):
         self.calls += 1
         p = messages[-1]["content"]
         if "Analyse the user's question" in p:

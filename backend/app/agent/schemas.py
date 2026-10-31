@@ -34,11 +34,19 @@ def extract_json(raw: str) -> dict | None:
         return None
 
 
-def call_json(llm: LLMClient, prompt: str, model_cls: type[BaseModel], retries: int = 1):
-    """Call the LLM and validate JSON output. Returns a model instance or None.
-    Retries once on invalid JSON (spec §6 step 1)."""
+def call_json(
+    llm: LLMClient, prompt: str, model_cls: type[BaseModel], retries: int = 1,
+    role: str = "agent", max_tokens: int = 400,
+):
+    """Call the LLM (JSON mode, role model) and validate the output. Returns a
+    model instance or None. Retries once on invalid JSON (spec §6 step 1)."""
+    from app.config import settings
+
     for _ in range(retries + 1):
-        raw = llm.chat([{"role": "user", "content": prompt}], temperature=0.0)
+        raw = llm.chat(
+            [{"role": "user", "content": prompt}], temperature=0.0,
+            model=settings.model_for(role), json_mode=True, max_tokens=max_tokens,
+        )
         obj = extract_json(raw)
         if obj is not None:
             try:

@@ -6,7 +6,7 @@ class _StubModel:
     def __init__(self, scores):
         self._scores = scores
 
-    def predict(self, pairs, show_progress_bar=False):
+    def predict(self, pairs, show_progress_bar=False, **kwargs):
         return self._scores
 
 
