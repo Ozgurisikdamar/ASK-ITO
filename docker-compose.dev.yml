@@ -1,0 +1,19 @@
+# Development override: backend --reload and the vite dev server (hot reload).
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+services:
+  backend:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      target: build
+    environment:
+      # vite's proxy runs inside this container, so /api goes to the backend service
+      VITE_API_BASE: http://backend:8000
+    ports: !override
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0

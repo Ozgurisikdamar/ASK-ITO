@@ -134,3 +134,67 @@ shipped runtime and are validated with `docker compose config`. Milestone
 acceptance checks that depend on a running stack are additionally verified by
 running Postgres (with pgvector) and the backend natively. On a normal machine
 with Docker, `make up && make migrate` is the supported path.
+
+## ADR-0013: Google-style default ("overview") with the agent behind "AI Mode"
+The agentic mode needs 5–7 sequential LLM calls before an answer, which on a
+CPU-only machine with a ≥27B model means minutes per search. The default
+experience is now `overview`: hybrid BM25 + vector retrieval with RRF, the
+cross-encoder rerank, and a single short LLM call (top-4 passages, trimmed,
+`OVERVIEW_MAX_TOKENS`). Results are shown as soon as retrieval finishes and the
+overview streams in afterwards. The agentic loop is unchanged in behaviour and
+remains available as the "AI Mode" tab and in evaluation. All spec modes stay
+selectable; `/api/search` (JSON) is backward compatible. This deviates from the
+spec's agentic-first UI and is a latency decision, not a capability removal.
+
+## ADR-0014: Streaming search over Server-Sent Events
+`GET /api/search/stream` (the optional endpoint of spec §9) emits `results`
+(hybrid list), `reranked`, `sources`, `token`… and `done` (validated answer,
+citations, timings) or `error {error, detail}`. The pipeline runs in a worker
+thread; the response loop sends keep-alive comments while the local model
+produces its first token, and a client disconnect cancels the LLM request.
+The frontend uses `EventSource` and closes it on `done`/`error` (otherwise the
+browser would reconnect and re-run the search). nginx serves the production
+frontend with `proxy_buffering off` for this route.
+
+## ADR-0015: LLM provider adapters — Ollama native API, OpenAI-compatible, optional fallback
+`LLM_MODE=ollama` now talks to Ollama's native `/api/chat` instead of its
+OpenAI-compatible path, because only the native API exposes `think`,
+`keep_alive`, `num_ctx`, `num_thread` and NDJSON streaming. Reasoning output is
+off by default (`LLM_THINK=false`); `<think>` blocks are still stripped from
+any provider, including across streamed chunks. `LLM_MODE=openai` covers any
+OpenAI-compatible host. Groq's free tier is documented as an optional fast
+provider (zero cost, but queries and retrieved passages leave the machine);
+`LLM_FALLBACK_*` switches to the local model when the primary fails before
+producing output (e.g. HTTP 429). A trailing `/v1` in an Ollama URL is accepted.
+The default model stays at or above 27B parameters: `qwen3:30b` (MoE, ~3B
+active, the practical choice on CPU) with `qwen3.8:27b` (dense) documented as
+the higher-quality, slower alternative.
+
+## ADR-0016: In-memory chunk store, connection pool, caches and warm-up
+Chunk and document metadata (~6k rows) is loaded once into memory and reloaded
+when the BM25 index version changes, so domain filtering, diversity, reranker
+passages and result hydration need no queries; a search makes one DB round trip
+(pgvector, via a `psycopg_pool` pool, with `SET LOCAL hnsw.ef_search` so top-50
+is not capped at 40). The domain filter is applied after a wider BM25 pool.
+Retrieval results are kept in an in-process LRU keyed by the index version, and
+answers in a persistent `answer_cache` table (migration 0003) keyed by query,
+mode, domain, provider:model, prompt version and index version. At startup the
+embedder, reranker, BM25 index, chunk store and the LLM are loaded, and the
+featured queries are pre-computed in the background; that work pauses while a
+user search is running.
+
+## ADR-0017: Default reranker — ms-marco-MiniLM-L-6-v2
+The cross-encoder stays mandatory and always runs; only its default model
+changed. Measured on the eval questions in the build environment (CPU, rerank
+pool 20, 256 tokens per pair):
+
+| reranker | rerank p50 / p95 | doc nDCG@10 | doc recall@5 |
+|---|---|---|---|
+| BAAI/bge-reranker-base | 3039 / 4114 ms | 0.711 | 0.773 |
+| cross-encoder/ms-marco-MiniLM-L-6-v2 | 465 / 562 ms | 0.681 | 0.739 |
+| (hybrid, no rerank) | – | 0.676 | – |
+
+MiniLM is the model the spec names as the lighter option; it is above the
+hybrid baseline, within 0.03 nDCG@10 of bge and under one second, so it is the
+default. `RERANKER_MODEL=BAAI/bge-reranker-base` restores the stronger, slower
+model. Re-measure with `backend/scripts/bench.py --reranker <model>`.

@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Ask ITO helper for environments without `make` (e.g. Git Bash on Windows).
+# Usage: ./askito <command> [args]   — run ./askito help for the list.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+# Git Bash rewrites /paths in arguments; keep container paths intact.
+export MSYS_NO_PATHCONV=1
+
+COMPOSE=(docker compose)
+DEV_FILES=(-f docker-compose.yml -f docker-compose.dev.yml)
+
+env_value() { # read KEY from .env (empty if missing)
+  [ -f .env ] || return 0
+  grep -E "^$1=" .env | tail -n1 | cut -d= -f2- | tr -d '\r"' || true
+}
+
+exec_backend() { "${COMPOSE[@]}" exec -T backend "$@"; }
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+  up)
+    [ -f .env ] || { cp .env.example .env; echo "created .env from .env.example"; }
+    "${COMPOSE[@]}" up -d --build
+    echo "UI: http://localhost:5173   API: http://localhost:8000/api/health"
+    ;;
+  dev)      "${COMPOSE[@]}" "${DEV_FILES[@]}" up -d --build ;;
+  down)     "${COMPOSE[@]}" down ;;
+  restart)  "${COMPOSE[@]}" restart backend ;;
+  model)
+    model="${1:-$(env_value LLM_DEFAULT_MODEL)}"
+    model="${model:-qwen3:30b}"
+    echo "pulling $model into the ollama container (one-time, several GB)..."
+    "${COMPOSE[@]}" exec -T ollama ollama pull "$model"
+    ;;
+  migrate)  exec_backend python -m app.db.migrate ;;
+  ingest)   exec_backend python -m app.ingest.run "$@" ;;
+  index)    exec_backend python -m app.index.run "$@" ;;
+  setup)    # first run: migrate + ingest + index
+    exec_backend python -m app.db.migrate
+    exec_backend python -m app.ingest.run
+    exec_backend python -m app.index.run
+    ;;
+  eval)     exec_backend python -m app.eval.run --configs "${1:-all}" ;;
+  bench)    exec_backend python scripts/bench.py "$@" ;;
+  test)
+    exec_backend pytest -q
+    (cd frontend && npm run typecheck)
+    ;;
+  health)   curl -s http://localhost:8000/api/health; echo ;;
+  logs)     "${COMPOSE[@]}" logs -f --tail=100 "${1:-backend}" ;;
+  help|*)
+    cat <<'EOF'
+Ask ITO commands
+  up             build + start everything (creates .env if missing)
+  dev            start with hot reload (vite + uvicorn --reload)
+  down           stop all services
+  restart        restart the backend (after editing .env)
+  model [name]   pull the LLM into Ollama (default: LLM_DEFAULT_MODEL from .env)
+  setup          first run: migrate + ingest + index
+  migrate        apply database migrations
+  ingest [--force] fetch the Wikipedia snapshot
+  index          chunk, embed, build BM25 + pgvector
+  eval [cfgs]    run the evaluation (default: all)
+  bench [args]   latency benchmark (e.g. ./askito bench --llm)
+  test           backend tests + frontend typecheck
+  health         print /api/health
+  logs [svc]     follow logs (default: backend)
+EOF
+    ;;
+esac
