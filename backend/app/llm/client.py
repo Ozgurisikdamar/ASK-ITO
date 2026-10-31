@@ -55,7 +55,7 @@ class OpenAICompatClient:
             f"{self.base_url}/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json={"model": model, "messages": messages, "temperature": temperature},
-            timeout=120.0,
+            timeout=240.0,
         )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]

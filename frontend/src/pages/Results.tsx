@@ -13,7 +13,7 @@ export function Results() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const q = params.get("q") ?? "";
-  const mode = params.get("mode") ?? "agentic";
+  const mode = params.get("mode") ?? "hybrid_rerank";
   const domain = params.get("domain") ?? "all";
 
   const [query, setQuery] = useState(q);

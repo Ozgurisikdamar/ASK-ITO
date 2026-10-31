@@ -80,7 +80,7 @@ Query/answer generation needs an OpenAI-compatible LLM; by default a local
 
 ```bash
 docker compose --profile ollama up -d ollama
-docker compose exec ollama ollama pull qwen3.8:27b   # or your model
+docker compose exec ollama ollama pull qwen3:30b   # or your model
 ```
 
 Set `LLM_DEFAULT_MODEL` (and optionally `LLM_AGENT_MODEL` / `LLM_ANSWER_MODEL` /

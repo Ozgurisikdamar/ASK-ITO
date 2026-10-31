@@ -19,7 +19,7 @@ const ALL_MODES = [
 export function Home() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<string>("agentic");
+  const [mode, setMode] = useState<string>("hybrid_rerank");
   const [domain, setDomain] = useState<string>("all");
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthError, setHealthError] = useState(false);
