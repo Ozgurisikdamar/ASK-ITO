@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Logo } from "../components/Logo";
 import { SearchBar } from "../components/SearchBar";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { getHealth, HealthResponse } from "../api/client";
+import { getFeatured, getHealth, HealthResponse } from "../api/client";
 import { strings } from "../strings";
 
 const ALL_MODES = [
+  "overview",
   "closed_book",
   "bm25",
   "vector",
@@ -19,13 +20,15 @@ const ALL_MODES = [
 export function Home() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<string>("hybrid_rerank");
+  const [mode, setMode] = useState<string>("overview");
   const [domain, setDomain] = useState<string>("all");
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthError, setHealthError] = useState(false);
+  const [chips, setChips] = useState<string[]>(strings.exampleChips);
 
   useEffect(() => {
     getHealth().then(setHealth).catch(() => setHealthError(true));
+    getFeatured().then((q) => q.length && setChips(q)).catch(() => undefined);
   }, []);
 
   function search(q: string) {
@@ -67,14 +70,14 @@ export function Home() {
         {/* mode selector */}
         <div className="mt-4 flex items-center gap-2 text-sm">
           <ModeButton
-            label={strings.modes.agentic}
-            active={mode === "agentic"}
-            onClick={() => setMode("agentic")}
+            label={strings.modes.search}
+            active={mode === "overview"}
+            onClick={() => setMode("overview")}
           />
           <ModeButton
-            label={strings.modes.fast}
-            active={mode === "hybrid_rerank"}
-            onClick={() => setMode("hybrid_rerank")}
+            label={strings.modes.aiMode}
+            active={mode === "agentic"}
+            onClick={() => setMode("agentic")}
           />
           <details className="relative">
             <summary className="cursor-pointer list-none rounded-full border border-mauve-200 px-3 py-1 text-content-muted hover:text-content">
@@ -114,7 +117,7 @@ export function Home() {
 
         {/* example chips */}
         <div className="mt-8 flex flex-wrap justify-center gap-2">
-          {strings.exampleChips.map((chip) => (
+          {chips.map((chip) => (
             <button
               key={chip}
               onClick={() => {

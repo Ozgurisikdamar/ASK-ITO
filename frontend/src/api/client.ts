@@ -32,13 +32,102 @@ export interface TraceStep {
 }
 
 export interface Source {
+  n?: number;
   chunk_id: number;
+  doc_id?: number;
   doc_title: string;
   section: string | null;
   url: string;
   domain: string;
   score: number | null;
   snippet: string;
+}
+
+/** An organic (Google-style) result: one passage of a Wikipedia article. */
+export interface ResultItem {
+  chunk_id: number;
+  doc_id: number;
+  doc_title: string;
+  section: string | null;
+  url: string;
+  domain: string;
+  score: number;
+  snippet: string;
+}
+
+export interface ResultsEvent {
+  results: ResultItem[];
+  total: number;
+  stage?: string;
+  timings: Record<string, number>;
+  cached?: boolean;
+}
+
+export interface DoneEvent {
+  answer: string;
+  citations: Citation[];
+  timings: Record<string, number>;
+  cached: boolean;
+  mode: string;
+  model?: string;
+  rounds?: number;
+  llm_calls?: number;
+}
+
+export interface StreamHandlers {
+  onResults?: (d: ResultsEvent) => void;
+  onReranked?: (d: ResultsEvent) => void;
+  onSources?: (sources: Source[]) => void;
+  onStep?: (step: TraceStep) => void;
+  onToken?: (text: string) => void;
+  onDone?: (d: DoneEvent) => void;
+  onError?: (d: { error: string; detail: string }) => void;
+}
+
+/**
+ * Open a streaming search (Server-Sent Events). Returns a function that closes
+ * the stream; closing also stops answer generation on the server.
+ */
+export function openSearchStream(
+  p: { query: string; mode: string; domain: string },
+  h: StreamHandlers
+): () => void {
+  const qs = new URLSearchParams({ q: p.query, mode: p.mode, domain: p.domain });
+  const es = new EventSource(`/api/search/stream?${qs.toString()}`);
+  let finished = false;
+  const finish = () => {
+    finished = true;
+    es.close(); // stop EventSource from auto-reconnecting (which would re-run the search)
+  };
+  const on = <T,>(name: string, fn: (d: T) => void) =>
+    es.addEventListener(name, (e) => fn(JSON.parse((e as MessageEvent).data)));
+
+  on<ResultsEvent>("results", (d) => h.onResults?.(d));
+  on<ResultsEvent>("reranked", (d) => h.onReranked?.(d));
+  on<{ sources: Source[] }>("sources", (d) => h.onSources?.(d.sources));
+  on<TraceStep>("step", (d) => h.onStep?.(d));
+  on<{ t: string }>("token", (d) => h.onToken?.(d.t));
+  on<DoneEvent>("done", (d) => {
+    finish();
+    h.onDone?.(d);
+  });
+  es.addEventListener("error", (e) => {
+    const data = (e as MessageEvent).data;
+    if (data) {
+      finish();
+      h.onError?.(JSON.parse(data));
+    } else if (!finished) {
+      finish();
+      h.onError?.({ error: "connection", detail: "The connection to the server was lost." });
+    }
+  });
+  return finish;
+}
+
+export async function getFeatured(): Promise<string[]> {
+  const r = await fetch("/api/suggest/featured");
+  if (!r.ok) throw new Error(`featured failed: ${r.status}`);
+  return (await r.json()).queries as string[];
 }
 
 export interface Citation {

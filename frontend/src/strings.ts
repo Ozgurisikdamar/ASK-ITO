@@ -6,6 +6,8 @@ export const strings = {
   searchAria: "Search query",
   submit: "Search",
   modes: {
+    search: "Search",
+    aiMode: "AI Mode",
     agentic: "Agentic",
     fast: "Fast",
     advanced: "Advanced",
@@ -29,6 +31,13 @@ export const strings = {
   corpusEmpty: "Corpus not indexed yet.",
   themeToggleAria: "Toggle dark mode",
   results: {
+    overview: "AI Overview",
+    generating: "Generating an AI overview from the sources…",
+    cpuNote: "Running on a local model — the first words can take a little while.",
+    cached: "instant",
+    webResults: "Results",
+    stats: (n: number, ms: number) => `${n} results (${(ms / 1000).toFixed(2)} seconds)`,
+    sourcesUsed: "Sources used in the overview",
     sources: "Sources",
     howItSearched: "How it searched",
     copy: "Copy",

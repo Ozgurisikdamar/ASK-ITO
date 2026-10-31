@@ -1,28 +1,7 @@
 import { Source } from "../api/client";
 import { strings } from "../strings";
 import { DomainBadge } from "./DomainBadge";
-
-function highlight(text: string, query: string) {
-  const terms = Array.from(new Set(query.toLowerCase().match(/\w+/g) ?? []))
-    .filter((t) => t.length >= 4)
-    .sort((a, b) => b.length - a.length);
-  if (terms.length === 0) return text;
-  const termSet = new Set(terms);
-  const re = new RegExp(`(${terms.map(escapeRe).join("|")})`, "gi");
-  return text.split(re).map((part, i) =>
-    termSet.has(part.toLowerCase()) ? (
-      <mark key={i} className="rounded bg-mauve-200 px-0.5 text-content">
-        {part}
-      </mark>
-    ) : (
-      <span key={i}>{part}</span>
-    )
-  );
-}
-
-function escapeRe(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+import { highlight } from "./highlight";
 
 interface SourceCardProps {
   source: Source;
