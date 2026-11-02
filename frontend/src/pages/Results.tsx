@@ -8,11 +8,13 @@ import { OrganicResult } from "../components/OrganicResult";
 import { SourceCard } from "../components/SourceCard";
 import { TracePanel } from "../components/TracePanel";
 import { LatencyBreakdown } from "../components/LatencyBreakdown";
+import { AnswerPrompt } from "../components/AnswerPrompt";
+import { getAutoAnswer, setAutoAnswer } from "../prefs";
 import { openSearchStream } from "../api/client";
 import { initialState, reducer } from "../search/state";
 import { strings } from "../strings";
 
-const DEFAULT_MODE = "overview";
+const DEFAULT_MODE = "search"; // no LLM call unless the user asks for an answer
 
 export function Results() {
   const [params] = useSearchParams();
@@ -26,6 +28,20 @@ export function Results() {
   const [highlight, setHighlight] = useState<number | null>(null);
   const clearTimer = useRef<number | undefined>(undefined);
   const startedAt = useRef<number>(0);
+  const [autoAnswer, setAutoAnswerState] = useState<boolean>(getAutoAnswer());
+
+  // "Always generate answers": a plain search goes straight to the answer view.
+  useEffect(() => {
+    if (autoAnswer && mode === "search" && q.trim() && !params.get("mode")) {
+      const sp = new URLSearchParams({ q, mode: "overview", domain });
+      navigate(`/search?${sp.toString()}`, { replace: true });
+    }
+  }, [autoAnswer, mode, q, domain, params, navigate]);
+
+  function changeAutoAnswer(on: boolean) {
+    setAutoAnswer(on);
+    setAutoAnswerState(on);
+  }
 
   useEffect(() => {
     setQuery(q);
@@ -65,7 +81,12 @@ export function Results() {
   function go(next: { q?: string; mode?: string }) {
     const nq = next.q ?? query;
     if (!nq.trim()) return;
-    const sp = new URLSearchParams({ q: nq, mode: next.mode ?? mode, domain });
+    const m = next.mode ?? mode;
+    // A new query in Search mode leaves the mode implicit, so the "always generate
+    // answers" preference applies; an explicit tab click always keeps the mode.
+    const sp = new URLSearchParams(
+      m === "search" && !next.mode ? { q: nq, domain } : { q: nq, mode: m, domain }
+    );
     navigate(`/search?${sp.toString()}`);
   }
 
@@ -89,8 +110,8 @@ export function Results() {
         </div>
         <nav className="mt-2 flex gap-4 text-sm" aria-label="Search mode">
           {[
+            { id: "search", label: strings.modes.search },
             { id: "overview", label: strings.modes.answer },
-            { id: "search", label: strings.modes.sources },
             { id: "agentic", label: strings.modes.aiMode },
           ].map((t) => (
             <button
@@ -125,9 +146,12 @@ export function Results() {
         )}
 
         {mode === "search" ? (
-          <p className="rounded-2xl border border-mauve-200 bg-surface-raised p-4 text-sm text-content-muted">
-            {strings.results.sourcesOnly}
-          </p>
+          <AnswerPrompt
+            onGenerate={() => go({ mode: "overview" })}
+            autoAnswer={autoAnswer}
+            onAutoAnswerChange={changeAutoAnswer}
+            disabled={!q.trim()}
+          />
         ) : mode !== "closed_book" || shownAnswer ? (
           <AnswerCard
             answer={shownAnswer}
@@ -143,6 +167,10 @@ export function Results() {
 
         {state.phase === "done" && state.abstained && (
           <p className="text-sm text-content-muted">{strings.results.abstained}</p>
+        )}
+
+        {mode !== "search" && state.citations.length > 0 && (
+          <p className="text-xs text-content-muted">{strings.results.citationDisclaimer}</p>
         )}
 
         {state.phase === "done" && (

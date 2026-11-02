@@ -21,7 +21,7 @@ const ALL_MODES = [
 export function Home() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState<string>("overview");
+  const [mode, setMode] = useState<string>("search"); // answers are generated on request
   const [domain, setDomain] = useState<string>("all");
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthError, setHealthError] = useState(false);
@@ -33,7 +33,8 @@ export function Home() {
   }, []);
 
   function search(q: string) {
-    const params = new URLSearchParams({ q, mode, domain });
+    // the default (Search) is left out of the URL so "always generate answers" applies
+    const params = new URLSearchParams(mode === "search" ? { q, domain } : { q, mode, domain });
     navigate(`/search?${params.toString()}`);
   }
 
@@ -71,12 +72,7 @@ export function Home() {
         {/* mode selector */}
         <div className="mt-4 flex items-center gap-2 text-sm">
           <ModeButton
-            label={strings.modes.answer}
-            active={mode === "overview"}
-            onClick={() => setMode("overview")}
-          />
-          <ModeButton
-            label={strings.modes.sources}
+            label={strings.modes.search}
             active={mode === "search"}
             onClick={() => setMode("search")}
           />

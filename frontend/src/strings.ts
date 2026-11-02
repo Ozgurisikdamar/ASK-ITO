@@ -7,7 +7,7 @@ export const strings = {
   submit: "Search",
   modes: {
     search: "Search",
-    answer: "Answer",
+    answer: "AI answer",
     sources: "Sources",
     aiMode: "AI Mode",
     agentic: "Agentic",
@@ -43,6 +43,13 @@ export const strings = {
     stats: (n: number, ms: number) => `${n} results (${(ms / 1000).toFixed(2)} seconds)`,
     sourcesUsed: "Sources used in the overview",
     sourcesOnly: "Sources only: ranked passages from the corpus, no AI answer generated.",
+    answerPromptTitle: "AI answer",
+    answerPromptNote:
+      "Generates a short cited answer with a local model from the top passages. On a CPU-only machine this takes about a minute.",
+    generateAnswer: "Generate AI answer",
+    alwaysGenerate: "Always generate answers automatically (this browser)",
+    citationDisclaimer:
+      "Citation numbers point to the retrieved passages the answer was written from. They do not by themselves verify each claim — check the sources.",
     abstained:
       "No passage in the corpus was relevant enough to answer from, so no answer was generated. Try a narrower query or browse the results below.",
     latency: "Latency",
