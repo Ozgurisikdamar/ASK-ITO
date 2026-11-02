@@ -249,3 +249,37 @@ reserved for the answer, max rounds, timeout) are unchanged. LLM calls are not
 parallelised: on a CPU-only machine concurrent requests to one local model
 compete for the same cores and memory bandwidth. Which switches are enabled by
 default is decided by measurement (see the optimization report).
+
+## ADR-0022: Fast Hybrid RAG as the default path
+Ordinary queries are served by one explicit path: BM25 and pgvector retrieval
+(the query embedding is computed once), Reciprocal Rank Fusion, an optional
+cross-encoder rerank of the top 20 candidates, then **exactly one** local LLM
+call (`qwen3.5:9b`, thinking off, temperature 0, at most 320 tokens) over the
+top 4 passages. No LLM call is made before the answer (no analysis, rewrite or
+sufficiency step). The existing `overview` mode is this path (reused rather than
+duplicated); a new `search` mode returns the same ranked passages with no LLM
+call. The agentic loop is unchanged and stays opt-in ("AI Mode"). RAGAS and the
+benchmarks are offline developer tools; the serving path does not import them
+(tested).
+
+Reranker: on the 46-question eval set, bge-reranker-base over 20 candidates at
+256 tokens per pair lifted doc Recall@5 from 0.716 to 0.773, chunk Recall@5
+from 0.318 to 0.432 and MRR@10 from 0.654 to 0.701 compared with no reranker, at
+~4 s per query on a 4-core CPU; MiniLM-L-6 (~0.8 s) gained little (0.739 /
+0.318 / 0.658). bge-reranker-base is therefore the default again (superseding
+the M10 choice in ADR-0017), and `FAST_RERANK=false` switches the stage off for
+slow machines.
+
+Evidence cut-off: passages whose cross-encoder score is below
+`FAST_MIN_EVIDENCE_SCORE` are not used as evidence; if none remain, the answer
+is the fixed "not found" sentence and the LLM is not called. 0.3 (bge
+probability units) keeps every answerable eval question (lowest top score
+0.70) and stops the off-topic probes; questions that share vocabulary with the
+corpus (e.g. other Nobel categories) pass the cut-off and rely on the prompt's
+not-found instruction. The value is model-specific (MiniLM outputs logits).
+
+Fallback: the optional fallback provider was removed. A failing local model
+surfaces as an error; no request is ever retried on another endpoint.
+
+Parallel BM25 and vector retrieval was not added: BM25 takes ~1 ms in memory,
+so running it concurrently with the query embedding would save at most that.
