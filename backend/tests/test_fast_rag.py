@@ -190,3 +190,20 @@ def test_stream_fast_answer_reports_stage_timings_and_models(monkeypatch):
     assert done["metrics"]["models"]["reranker"] == (
         settings.reranker_model if settings.fast_rerank else None)
     assert done["reranker"] == done["metrics"]["models"]["reranker"]
+
+
+@needs_index
+def test_stream_abstention_reports_no_llm_model(monkeypatch):
+    from app.api import stream as stream_api
+    from app.retrieval import answer_cache
+
+    monkeypatch.setattr(answer_cache, "get", lambda *a, **k: None)
+    monkeypatch.setattr(answer_cache, "put", lambda *a, **k: None)
+    monkeypatch.setattr(settings, "fast_rerank", True)
+    monkeypatch.setattr(settings, "fast_min_evidence_score", 1.01)
+    pipeline.cache_clear()
+    events = list(stream_api.produce("sourdough bread", "overview", "all", threading.Event()))
+    done = events[-1][1]
+    assert done["abstained"] is True and done["model"] is None
+    assert done["metrics"]["llm"]["calls"] == 0
+    assert "could not find" in done["answer"].lower()

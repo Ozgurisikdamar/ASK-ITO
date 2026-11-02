@@ -137,7 +137,7 @@ def _produce(q: str, mode: str, domain: str, cancel: threading.Event):
         yield "token", {"t": hit["answer"]}
         yield "done", {"answer": hit["answer"], "citations": hit["citations"],
                        "timings": timings, "cached": True, "mode": mode,
-                       "model": settings.model_for("answer"),
+                       "model": settings.model_for("answer") if sources else None,
                        "reranker": service.model_info(mode)["reranker"],
                        "abstained": not sources}
         return
@@ -156,7 +156,7 @@ def _produce(q: str, mode: str, domain: str, cancel: threading.Event):
             answer_cache.put(q, mode, domain, payload["answer"], payload["citations"],
                              [s.chunk_id for s in sources])
             yield "done", {**payload, "timings": timings, "cached": False, "mode": mode,
-                           "model": settings.model_for("answer"),
+                           "model": settings.model_for("answer") if sources else None,
                            "reranker": service.model_info(mode)["reranker"],
                            "abstained": not sources}
 
