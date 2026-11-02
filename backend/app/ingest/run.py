@@ -25,7 +25,7 @@ import psycopg
 from app.config import settings
 from app.ingest import expand
 from app.ingest.clean import char_count, clean_extract
-from app.ingest.seeds import Seed, load_seeds
+from app.ingest.seeds import load_seeds
 from app.ingest.wiki import PageResult, WikiClient, WikiError
 
 RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"

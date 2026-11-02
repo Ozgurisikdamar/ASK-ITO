@@ -9,7 +9,6 @@ import pytest
 
 from app.config import settings
 from app.index import bm25_index
-from app.retrieval import pipeline
 from app.retrieval.service import run_search
 
 

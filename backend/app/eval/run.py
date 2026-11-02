@@ -21,6 +21,10 @@ from datetime import datetime, timezone
 
 import psycopg
 
+from app.config import settings
+from app.eval import metrics, ragas_eval, report
+from app.retrieval import pipeline
+
 
 def _finite(obj):
     """Replace NaN/Inf floats with None (Postgres JSONB rejects them)."""
@@ -31,10 +35,6 @@ def _finite(obj):
     if isinstance(obj, list):
         return [_finite(v) for v in obj]
     return obj
-
-from app.config import settings
-from app.eval import metrics, ragas_eval, report
-from app.retrieval import pipeline
 
 # "search" produces no answer, so it is not an evaluation configuration
 ALL_MODES = [m for m in pipeline.RETRIEVAL_MODES if m != "search"] + ["agentic"]

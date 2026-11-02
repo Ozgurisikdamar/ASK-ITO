@@ -149,7 +149,6 @@ def run(total: int | None = None, seed: int = 0, llm=None) -> dict:
             item = _select_and_generate(llm, qtype)
             if not item:
                 continue
-            n = len(drafts) + 1
             item.update(
                 id=f"{qtype}-{counts[qtype] + 1:03d}",
                 qtype=qtype,
