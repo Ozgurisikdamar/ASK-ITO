@@ -107,7 +107,7 @@ def main() -> None:
                   "section": by_n.get(c["n"], {}).get("section"),
                   "url": by_n.get(c["n"], {}).get("url")} for c in done.get("citations", [])]
         llm = done.get("metrics", {}).get("llm", {})
-        ck.unit(key, kind=kind, query=q, wall_ms=wall, timings=done.get("timings"),
+        ck.unit(key, query_kind=kind, query=q, wall_ms=wall, timings=done.get("timings"),
                 events=kinds.count("token"), llm_calls=llm.get("calls"),
                 llm_by_role=llm.get("by_role"), prompt_tokens=llm.get("prompt_tokens"),
                 completion_tokens=llm.get("completion_tokens"),
