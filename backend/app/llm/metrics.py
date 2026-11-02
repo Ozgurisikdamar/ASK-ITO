@@ -10,7 +10,7 @@ Usage:
 timed and, when a recorder is active, appended to it with the current role,
 model, token counts reported by the provider (Ollama: prompt_eval_count /
 eval_count; otherwise marked "unknown"), load time (cold start), time to first
-token for streams, and error/timeout/fallback flags. Prompt and output text are
+token for streams, and error/timeout flags. Prompt and output text are
 never recorded.
 """
 from __future__ import annotations
@@ -63,7 +63,6 @@ class CallRecorder:
             "tokens_reported": len(known) == len(self.calls),
             "errors": sum(1 for c in self.calls if c.get("error")),
             "timeouts": sum(1 for c in self.calls if c.get("timeout")),
-            "fallbacks": sum(1 for c in self.calls if c.get("fallback")),
             "context_overflows": sum(1 for c in self.calls if c.get("context_overflow")),
             "cold_loads": sum(1 for c in self.calls if c.get("cold")),
             "notes": self.notes,
@@ -128,8 +127,6 @@ class InstrumentedLLM:
             rec.update(_usage_fields(usage))
         else:
             rec.setdefault("tokens", "unknown")
-        if getattr(self.inner, "last_used_fallback", False):
-            rec["fallback"] = True
         if exc is not None:
             rec["error"] = exc.__class__.__name__
             rec["timeout"] = isinstance(exc, httpx.TimeoutException)

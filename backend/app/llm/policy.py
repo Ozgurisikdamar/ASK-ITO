@@ -1,7 +1,7 @@
 """Local-only inference policy.
 
-With LLM_LOCAL_ONLY=true (the default) every configured LLM endpoint — primary,
-fallback and RAGAS judge — must resolve to a loopback, private-network or
+With LLM_LOCAL_ONLY=true (the default) every configured LLM endpoint — the
+answer/agent model and the RAGAS judge — must resolve to a loopback, private-network or
 link-local address (e.g. localhost, the docker-compose `ollama` service, a LAN
 machine). Anything else is refused at client construction with a clear error,
 so no query or retrieved passage can leave the local network by

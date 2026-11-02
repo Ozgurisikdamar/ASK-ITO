@@ -5,7 +5,7 @@ import pytest
 
 from app.config import settings
 from app.index import bm25_index
-from app.llm.client import FallbackClient, LLMError, MockLLMClient, OllamaClient
+from app.llm.client import MockLLMClient, OllamaClient
 from app.llm.metrics import CallRecorder, instrumented, llm_role, recording
 
 
@@ -64,17 +64,6 @@ def test_errors_and_timeouts_recorded_and_reraised():
             instrumented(Slow()).chat([{"role": "user", "content": "x"}])
     s = rec.summary()
     assert s["errors"] == 1 and s["timeouts"] == 1
-
-
-def test_fallback_flag_recorded():
-    class Broken:
-        def chat(self, messages, **kw):
-            raise LLMError("HTTP 503")
-
-    llm = instrumented(FallbackClient(Broken(), MockLLMClient()))
-    with recording() as rec:
-        assert llm.chat([{"role": "user", "content": "hi"}]).startswith("[mock]")
-    assert rec.summary()["fallbacks"] == 1
 
 
 def test_no_recorder_means_no_side_effects_and_same_output():

@@ -156,7 +156,7 @@ The frontend uses `EventSource` and closes it on `done`/`error` (otherwise the
 browser would reconnect and re-run the search). nginx serves the production
 frontend with `proxy_buffering off` for this route.
 
-## ADR-0015: LLM provider adapters — Ollama native API, OpenAI-compatible, optional fallback
+## ADR-0015: LLM provider adapters — Ollama native API, OpenAI-compatible (fallback removed, see ADR-0022)
 `LLM_MODE=ollama` now talks to Ollama's native `/api/chat` instead of its
 OpenAI-compatible path, because only the native API exposes `think`,
 `keep_alive`, `num_ctx`, `num_thread` and NDJSON streaming. Reasoning output is
@@ -202,7 +202,7 @@ model. Re-measure with `backend/scripts/bench.py --reranker <model>`.
 ## ADR-0018: Local-only inference policy
 All inference — answers, agent steps, query rewriting and the RAGAS judge — runs
 on locally hosted models. `LLM_LOCAL_ONLY=true` (default) makes the LLM client
-factory refuse any endpoint (primary, fallback, judge) whose host does not
+factory refuse any endpoint (answer/agent model, judge) whose host does not
 resolve to a loopback, private-network or link-local address
 (`app/llm/policy.py`). Hosted-provider examples were removed from
 `.env.example` and the README. The OpenAI-compatible adapter remains for local
@@ -221,7 +221,7 @@ queue and time out.
 ## ADR-0020: Request instrumentation
 `app/llm/metrics.py` records every LLM call of a request (role, model,
 duration, provider-reported prompt/completion tokens, load time / cold start,
-time to first token for streams, error/timeout/fallback flags) through a
+time to first token for streams, error/timeout flags) through a
 context-local recorder and a transparent client wrapper; prompt and output text
 are never recorded. `/api/search`, the agent result and the SSE `done` event
 carry an additive `metrics` object (per-stage retrieval times, LLM calls by

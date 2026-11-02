@@ -50,11 +50,6 @@ class Settings(BaseSettings):
     llm_ping_timeout_s: float = 2.0
     llm_max_retries: int = 2  # on 429 / 5xx
     llm_extra_body: str = ""  # JSON merged into OpenAI-compatible request bodies
-    # Optional fallback when the primary provider fails (e.g. Groq daily limit)
-    llm_fallback_mode: str = ""  # "" | "ollama" | "openai"
-    llm_fallback_base_url: str = "http://localhost:11434"
-    llm_fallback_api_key: str = "ollama"
-    llm_fallback_model: str = ""
     # Refuse LLM/judge endpoints that are not loopback/private-network (app.llm.policy)
     llm_local_only: bool = True
     llm_judge_max_tokens: int = 1024  # RAGAS judge generation limit

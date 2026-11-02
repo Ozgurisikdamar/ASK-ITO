@@ -6,7 +6,6 @@ import pytest
 
 from app.llm import client as llm
 from app.llm.client import (
-    FallbackClient,
     LLMError,
     MockLLMClient,
     OllamaClient,
@@ -149,22 +148,13 @@ def test_openai_raises_after_retries_exhausted():
         c.chat([{"role": "user", "content": "q"}])
 
 
-# -- fallback ---------------------------------------------------------------
+# -- no fallback ------------------------------------------------------------
 
-class _Broken:
-    def chat(self, messages, **kw):
-        raise LLMError("HTTP 429")
+def test_no_fallback_provider_exists():
+    import app.config as cfg
 
-    def stream_chat(self, messages, **kw):
-        raise LLMError("HTTP 429")
-        yield  # pragma: no cover
-
-
-def test_fallback_used_when_primary_fails_before_output():
-    fb = FallbackClient(_Broken(), MockLLMClient())
-    msgs = [{"role": "user", "content": "hello"}]
-    assert fb.chat(msgs, model="primary-only").startswith("[mock]")
-    assert "".join(fb.stream_chat(msgs)).startswith("[mock]")
+    assert not hasattr(llm, "FallbackClient")
+    assert not any(k.startswith("llm_fallback") for k in cfg.Settings.model_fields)
 
 
 def test_mock_stream_respects_cancel():
