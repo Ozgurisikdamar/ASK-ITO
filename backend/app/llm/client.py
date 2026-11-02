@@ -33,7 +33,7 @@ from typing import Iterator, Protocol
 import httpx
 
 from app.config import settings
-from app.llm.policy import ensure_local_url
+from app.llm.policy import allowed_hosts_from_setting, ensure_local_url
 
 log = logging.getLogger("askito.llm")
 Message = dict[str, str]
@@ -104,13 +104,25 @@ class ThinkFilter:
         return rest
 
 
+def local_allowed_hosts() -> list[str]:
+    return allowed_hosts_from_setting(settings.llm_allowed_hosts)
+
+
+def _check_request_url(request: httpx.Request) -> None:
+    """Re-validate the target of every outgoing LLM request (LLM_LOCAL_ONLY)."""
+    ensure_local_url(str(request.url), "LLM request", local_allowed_hosts())
+
+
 class _HTTPClient:
     def __init__(self, base_url: str, api_key: str) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
+        hooks = {"request": [_check_request_url]} if settings.llm_local_only else {}
         self._http = httpx.Client(
             timeout=httpx.Timeout(settings.llm_timeout_s, connect=settings.llm_connect_timeout_s),
             headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+            follow_redirects=False,  # a redirect could point outside the local host
+            event_hooks=hooks,
         )
 
     def _retry_wait(self, resp: httpx.Response, attempt: int) -> float:
@@ -127,6 +139,8 @@ class _HTTPClient:
                 if attempt < settings.llm_max_retries:
                     time.sleep(self._retry_wait(resp, attempt))
                     continue
+            if 300 <= resp.status_code < 400:
+                raise LLMError(f"HTTP {resp.status_code}: redirects are not followed")
             if resp.status_code >= 400:
                 raise LLMError(f"HTTP {resp.status_code}: {resp.text[:300]}")
             return resp.json()
@@ -141,6 +155,8 @@ class _HTTPClient:
                     resp.close()
                     time.sleep(wait)
                     continue
+                if 300 <= resp.status_code < 400:
+                    raise LLMError(f"HTTP {resp.status_code}: redirects are not followed")
                 if resp.status_code >= 400:
                     resp.read()
                     raise LLMError(f"HTTP {resp.status_code}: {resp.text[:300]}")
@@ -394,7 +410,7 @@ def make_client(mode: str, base_url: str, api_key: str, default_model: str = "")
     if mode == "mock":
         return MockLLMClient()
     if settings.llm_local_only:
-        ensure_local_url(base_url, f"LLM endpoint ({mode})")
+        ensure_local_url(base_url, f"LLM endpoint ({mode})", local_allowed_hosts())
     if mode == "openai":
         return OpenAICompatClient(base_url, api_key, default_model)
     if mode == "ollama":

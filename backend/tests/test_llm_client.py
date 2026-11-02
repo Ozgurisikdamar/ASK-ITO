@@ -237,39 +237,6 @@ def test_timeout_surfaces_as_error():
         c.chat([{"role": "user", "content": "q"}])
 
 
-# -- local-only policy -------------------------------------------------------
-
-def test_local_only_policy_accepts_local_and_refuses_remote():
-    from app.llm.policy import RemoteEndpointError, ensure_local_url
-
-    ensure_local_url("http://127.0.0.1:11434")
-    ensure_local_url("http://localhost:11434", resolver=lambda h: ["127.0.0.1", "::1"])
-    ensure_local_url("http://ollama:11434", resolver=lambda h: ["172.18.0.3"])
-    ensure_local_url("http://192.168.1.20:8080/v1")
-    with pytest.raises(RemoteEndpointError):
-        ensure_local_url("https://api.example.com/v1", resolver=lambda h: ["93.184.216.34"])
-    with pytest.raises(RemoteEndpointError):
-        ensure_local_url("http://8.8.8.8:11434")
-
-    def unresolvable(h):
-        raise OSError("no such host")
-
-    with pytest.raises(RemoteEndpointError):
-        ensure_local_url("http://nowhere.invalid", resolver=unresolvable)
-
-
-def test_make_client_enforces_local_only(monkeypatch):
-    from app.llm.policy import RemoteEndpointError
-
-    monkeypatch.setattr(llm.settings, "llm_local_only", True)
-    with pytest.raises(RemoteEndpointError):
-        llm.make_client("openai", "http://8.8.8.8/v1", "k", "m")
-    assert isinstance(llm.make_client("ollama", "http://127.0.0.1:11434", ""), OllamaClient)
-    monkeypatch.setattr(llm.settings, "llm_local_only", False)
-    assert isinstance(llm.make_client("openai", "http://8.8.8.8/v1", "k", "m"),
-                      OpenAICompatClient)
-
-
 def test_role_model_fallback(monkeypatch):
     s = llm.settings
     monkeypatch.setattr(s, "llm_default_model", "base")

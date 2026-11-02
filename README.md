@@ -123,8 +123,12 @@ memory=26GB
 ```
 
 **Local only.** All inference — answers, agent steps and the RAGAS judge —
-runs on local models. `LLM_LOCAL_ONLY=true` (default) refuses any endpoint that
-does not resolve to a loopback or private-network address. A locally served
+runs on local models. `LLM_LOCAL_ONLY=true` (default) accepts **loopback
+endpoints only** (`localhost`, `127.0.0.0/8`, `::1`; http/https, no credentials
+in the URL); private-network, LAN, link-local and public addresses are refused,
+every request is re-checked and redirects are never followed. The single
+explicit exception is `LLM_ALLOWED_HOSTS`: docker-compose sets it to `ollama`,
+which may resolve only to a private bridge-network address. A locally served
 OpenAI-compatible runtime (llama.cpp server, vLLM) can be used with
 `LLM_MODE=openai`.
 

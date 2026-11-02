@@ -51,8 +51,11 @@ class Settings(BaseSettings):
     llm_ping_timeout_s: float = 2.0
     llm_max_retries: int = 2  # on 429 / 5xx
     llm_extra_body: str = ""  # JSON merged into OpenAI-compatible request bodies
-    # Refuse LLM/judge endpoints that are not loopback/private-network (app.llm.policy)
-    llm_local_only: bool = True
+    llm_local_only: bool = True  # loopback-only LLM/judge endpoints (app.llm.policy)
+    # Container hostnames trusted to resolve to private-network addresses when
+    # LLM_LOCAL_ONLY=true (comma-separated, exact names; empty = loopback only).
+    # docker-compose sets "ollama".
+    llm_allowed_hosts: str = ""
     llm_judge_max_tokens: int = 1024  # RAGAS judge generation limit
     ragas_timeout_s: int = 1800  # per RAGAS job (single worker, local CPU)
 

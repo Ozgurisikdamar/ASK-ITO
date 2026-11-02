@@ -23,6 +23,9 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://askito:askito@db:5432/askito
+      # LLM_LOCAL_ONLY allows loopback only; the compose `ollama` service is the one
+      # explicitly trusted private-network host (bridge network, never public).
+      LLM_ALLOWED_HOSTS: ollama
     depends_on:
       db:
         condition: service_healthy
