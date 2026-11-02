@@ -5,6 +5,7 @@ endpoint reuses `results_payload`, `context_sources` and `sources_payload`.
 """
 from __future__ import annotations
 
+import logging
 import time
 
 from app.agent.answer import Source, build_sources, generate_answer
@@ -12,6 +13,8 @@ from app.config import settings
 from app.llm.client import LLMClient
 from app.llm.metrics import log_request, recording
 from app.retrieval import hydrate, pipeline
+
+log = logging.getLogger("askito.search")
 
 
 def sources_payload(sources: list[Source], query: str) -> list[dict]:
@@ -58,16 +61,33 @@ def context_k(mode: str) -> int:
     return settings.overview_context_chunks if mode == "overview" else settings.final_k
 
 
+def evidence_cutoff_active(mode: str) -> bool:
+    """The cut-off applies in the fast modes when they rerank with the model it
+    was calibrated for (EVIDENCE_SCORE_MODEL) and FAST_MIN_EVIDENCE_SCORE > 0."""
+    return (settings.fast_min_evidence_score > 0 and mode in pipeline.FAST_MODES
+            and pipeline.uses_reranker(mode)
+            and settings.reranker_model == settings.evidence_score_model)
+
+
+_warned_uncalibrated = False
+
+
 def evidence_filter(ranked: list[tuple[int, float]], mode: str,
                     n_reranked: int) -> list[tuple[int, float]]:
-    """Fast modes with the reranker on: keep only cross-encoder-scored passages
-    at or above FAST_MIN_EVIDENCE_SCORE (0 = no filtering). An empty result means
-    the corpus has no sufficient evidence and the answer is "not found" without
-    an LLM call. Scores are used as a relevance cut-off, not as confidence."""
-    thr = settings.fast_min_evidence_score
-    if thr <= 0 or mode not in pipeline.FAST_MODES or not pipeline.uses_reranker(mode):
+    """Weak out-of-domain gate (a heuristic, not calibrated confidence): keep
+    only cross-encoder-scored passages at or above FAST_MIN_EVIDENCE_SCORE. An
+    empty result means "not found" without an LLM call. It stops clearly
+    off-topic queries; questions that share vocabulary with the corpus usually
+    pass and rely on the prompt's not-found instruction."""
+    global _warned_uncalibrated
+    if not evidence_cutoff_active(mode):
+        if (settings.fast_min_evidence_score > 0 and pipeline.uses_reranker(mode)
+                and mode in pipeline.FAST_MODES and not _warned_uncalibrated):
+            _warned_uncalibrated = True
+            log.warning("evidence cut-off disabled: calibrated for %s, reranker is %s",
+                        settings.evidence_score_model, settings.reranker_model)
         return ranked
-    return [(c, s) for c, s in ranked[:n_reranked] if s >= thr]
+    return [(c, s) for c, s in ranked[:n_reranked] if s >= settings.fast_min_evidence_score]
 
 
 def context_sources(ranked: list[tuple[int, float]], mode: str,
@@ -165,8 +185,7 @@ def model_info(mode: str) -> dict:
 
 
 def evidence_info(mode: str, context_chunks: int) -> dict:
-    active = (mode in pipeline.FAST_MODES and pipeline.uses_reranker(mode)
-              and settings.fast_min_evidence_score > 0)
+    active = evidence_cutoff_active(mode)
     return {"min_score": settings.fast_min_evidence_score if active else None,
             "context_chunks": context_chunks,
             "abstained": mode != "search" and context_chunks == 0}

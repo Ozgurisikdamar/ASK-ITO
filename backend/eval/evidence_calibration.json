@@ -1,0 +1,38 @@
+{
+  "description": "Calibration set for the evidence cut-off (FAST_MIN_EVIDENCE_SCORE). The cut-off is a weak out-of-domain gate on the reranker score, not calibrated confidence. 'answerable' questions come from the eval set; 'near_domain_unsupported' share vocabulary with the corpus but their answer is absent (each new one verified absent by keyword search over all chunks when the file was created); 'out_of_domain' are unrelated to the corpus.",
+  "answerable": [
+    "Which came first, the 2022 or 2023 Nobel Prize in Physics, and what did each cover?",
+    "How do convolutional neural networks and Transformers differ in processing their input?",
+    "The 2024 Physics laureate Geoffrey Hinton is associated with which stochastic neural network cited in the prize's background?",
+    "The 2025 Physics Nobel involved macroscopic quantum tunneling demonstrated in which kind of superconducting element?",
+    "Which family of large language models is built on the Transformer and exemplifies generative AI?",
+    "What is quantum error correction and why is it needed?",
+    "Who shared the 2025 Nobel Prize in Physics and for what?",
+    "What was the 2026 Nobel Prize in Physics awarded for?",
+    "Which three scientists shared the 2022 Nobel Prize in Physics?",
+    "What problem does Shor's algorithm solve efficiently on a quantum computer?",
+    "What method did the 2020 Nobel Prize in Chemistry recognize for Charpentier and Doudna?"
+  ],
+  "near_domain_unsupported": [
+    "Who won the 2023 Nobel Prize in Literature and for which works?",
+    "Which organisation received the 2024 Nobel Peace Prize?",
+    "What did Claudia Goldin win the Nobel Prize in Economic Sciences for?",
+    "Which novels by Han Kang were cited when she received the Nobel Prize?",
+    "What was the exact three-course menu served at the 2025 Nobel Prize banquet in Stockholm?",
+    "How many hours per day does Geoffrey Hinton personally spend exercising?",
+    "Who won the 2021 Nobel Prize in Literature?",
+    "What was Annie Ernaux awarded the Nobel Prize in Literature for?",
+    "Why was Narges Mohammadi awarded the 2023 Nobel Peace Prize?",
+    "What did Daron Acemoglu win the 2024 Nobel Prize in Economic Sciences for?",
+    "What is the name of Geoffrey Hinton's dog?",
+    "Which organisations shared the 2022 Nobel Peace Prize with Ales Bialiatski?"
+  ],
+  "out_of_domain": [
+    "How do you make a sourdough starter at home?",
+    "What is the current price of Bitcoin in US dollars?",
+    "Who painted the Mona Lisa and in which museum is it displayed?",
+    "What is the population of Lisbon?",
+    "How tall is the Burj Khalifa?",
+    "What is the smoke point of extra virgin olive oil?"
+  ]
+}

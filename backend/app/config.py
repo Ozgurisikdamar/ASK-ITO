@@ -132,6 +132,9 @@ class Settings(BaseSettings):
     # without calling the LLM. In the reranker's own score units: 0.3 is calibrated
     # for bge-reranker-base (probabilities); MiniLM outputs logits -> re-calibrate.
     fast_min_evidence_score: float = 0.3
+    # The reranker the cut-off was calibrated for. With any other RERANKER_MODEL the
+    # cut-off is disabled (scores are not comparable: MiniLM returns logits).
+    evidence_score_model: str = "BAAI/bge-reranker-base"
     overview_context_chunks: int = 4
     overview_context_chars: int = 700
     overview_max_tokens: int = 320

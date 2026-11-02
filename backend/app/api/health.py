@@ -23,6 +23,7 @@ from fastapi import APIRouter
 
 from app.config import settings
 from app.llm.client import get_llm_client
+from app.retrieval import service
 
 router = APIRouter()
 
@@ -145,4 +146,10 @@ def health() -> dict:
         "warmup": {"status": state["status"], "steps": state["steps"],
                    "error": state["error"], "prewarm": state["prewarm"]},
         "default_mode": settings.default_mode,
+        "evidence_cutoff": {
+            "active_for_answers": service.evidence_cutoff_active("overview"),
+            "min_score": settings.fast_min_evidence_score,
+            "calibrated_for": settings.evidence_score_model,
+            "reranker": settings.reranker_model,
+        },
     }
