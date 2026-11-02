@@ -49,7 +49,10 @@ def eval_row(label: str, conn) -> dict:
     header, units, errors = load("eval", label)
     qset = header.get("questions", "all")
     qs = {q["id"]: q for q in (load_probes() if qset == "probes"
-                               else load_questions(conn, None))}
+                               else load_questions(conn, qset))}
+    # only the latest run's question set counts (a label may be resumed with a
+    # smaller subset; units of other questions stay in the file but are ignored)
+    units = [u for u in units if u["question_id"] in qs]
     planned = header.get("planned_units")
     rep1 = [u for u in units if u["rep"] == 1]
     cites = []

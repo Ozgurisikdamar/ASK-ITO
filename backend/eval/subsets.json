@@ -35,6 +35,14 @@
       "What method did the 2020 Nobel Prize in Chemistry recognize for Charpentier and Doudna?",
       "What are microRNAs?",
       "What was the exact three-course menu served at the 2025 Nobel Prize banquet in Stockholm?"
+    ],
+    "rag6": [
+      "Which came first, the 2022 or 2023 Nobel Prize in Physics, and what did each cover?",
+      "The 2024 Physics laureate Geoffrey Hinton is associated with which stochastic neural network cited in the prize's background?",
+      "The 2025 Physics Nobel involved macroscopic quantum tunneling demonstrated in which kind of superconducting element?",
+      "Who shared the 2025 Nobel Prize in Physics and for what?",
+      "Which three scientists shared the 2022 Nobel Prize in Physics?",
+      "What is quantum error correction and why is it needed?"
     ]
   },
   "composition": {
@@ -53,7 +61,15 @@
       "recent": 3,
       "single_hop": 6,
       "unanswerable": 1
+    },
+    "rag6": {
+      "comparison": 1,
+      "multi_hop": 2,
+      "recent": 1,
+      "single_hop": 1,
+      "quantum": 1
     }
   },
-  "total_questions": 46
+  "total_questions": 46,
+  "note": "rag6 is a stratified subset of lat12 (answerable questions only), used for the RAGAS pass"
 }

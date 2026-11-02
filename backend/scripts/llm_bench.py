@@ -112,19 +112,23 @@ def main() -> None:
     ap.add_argument("--threads", default="0", help="comma list; 0 = Ollama default")
     ap.add_argument("--ctx", default="4096", help="comma list of num_ctx values")
     ap.add_argument("--no-cold", action="store_true")
+    ap.add_argument("--tag", default="default",
+                    help="label for the Ollama server configuration under test")
     args = ap.parse_args()
 
     from benchkit import CHECKPOINT_DIR, Checkpoint, ollama_info, summary
     from eval_bench import ResourceSampler
 
-    safe = args.model.replace(":", "_").replace("/", "_")
+    safe = args.model.replace(":", "_").replace("/", "_") + f"_{args.tag}"
     ck = Checkpoint(CHECKPOINT_DIR / f"llm_{safe}.jsonl")
     prompts = build_prompts()
     threads = [int(x) for x in args.threads.split(",")]
     ctxs = [int(x) for x in args.ctx.split(",")]
     planned = len(threads) * len(ctxs) * len(prompts) * args.reps + (0 if args.no_cold else 1)
     meta = ollama_info(args.base, args.model)
-    ck.header(benchmark="llm", model=meta, threads=threads, ctx=ctxs, reps=args.reps,
+    server_env = {k: v for k, v in os.environ.items() if k.startswith("OLLAMA_")}
+    ck.header(benchmark="llm", model=meta, server_tag=args.tag, server_env=server_env,
+              threads=threads, ctx=ctxs, reps=args.reps,
               prompts=list(prompts), planned_units=planned, question=QUESTION)
 
     if not args.no_cold and not ck.has("cold"):
