@@ -1,0 +1,59 @@
+{
+  "subsets": {
+    "lat12": [
+      "Which came first, the 2022 or 2023 Nobel Prize in Physics, and what did each cover?",
+      "How do convolutional neural networks and Transformers differ in processing their input?",
+      "The 2024 Physics laureate Geoffrey Hinton is associated with which stochastic neural network cited in the prize's background?",
+      "The 2025 Physics Nobel involved macroscopic quantum tunneling demonstrated in which kind of superconducting element?",
+      "Which family of large language models is built on the Transformer and exemplifies generative AI?",
+      "What is quantum error correction and why is it needed?",
+      "Who shared the 2025 Nobel Prize in Physics and for what?",
+      "What was the 2026 Nobel Prize in Physics awarded for?",
+      "Which three scientists shared the 2022 Nobel Prize in Physics?",
+      "What problem does Shor's algorithm solve efficiently on a quantum computer?",
+      "What method did the 2020 Nobel Prize in Chemistry recognize for Charpentier and Doudna?",
+      "What was the exact three-course menu served at the 2025 Nobel Prize banquet in Stockholm?"
+    ],
+    "sub20": [
+      "Which came first, the 2022 or 2023 Nobel Prize in Physics, and what did each cover?",
+      "Compare the subjects of the 2024 Physics and 2024 Chemistry Nobel Prizes.",
+      "How do convolutional neural networks and Transformers differ in processing their input?",
+      "The 2024 Physics laureate Geoffrey Hinton is associated with which stochastic neural network cited in the prize's background?",
+      "Which organization did 2024 Chemistry laureate Demis Hassabis co-found that developed AlphaFold?",
+      "The 2025 Physics Nobel involved macroscopic quantum tunneling demonstrated in which kind of superconducting element?",
+      "Cancer immunotherapy (2018 Medicine Nobel) works by blocking which class of molecules; name one laureate.",
+      "Which family of large language models is built on the Transformer and exemplifies generative AI?",
+      "What is quantum error correction and why is it needed?",
+      "What is a transmon?",
+      "Who shared the 2025 Nobel Prize in Physics and for what?",
+      "What did the 2025 Nobel Prize in Chemistry recognize, and who were the laureates?",
+      "What was the 2026 Nobel Prize in Physics awarded for?",
+      "Which three scientists shared the 2022 Nobel Prize in Physics?",
+      "What did Svante Pääbo receive the 2022 Nobel Prize in Physiology or Medicine for?",
+      "What problem does Shor's algorithm solve efficiently on a quantum computer?",
+      "What is retrieval-augmented generation (RAG)?",
+      "What method did the 2020 Nobel Prize in Chemistry recognize for Charpentier and Doudna?",
+      "What are microRNAs?",
+      "What was the exact three-course menu served at the 2025 Nobel Prize banquet in Stockholm?"
+    ]
+  },
+  "composition": {
+    "lat12": {
+      "comparison": 2,
+      "multi_hop": 3,
+      "quantum": 1,
+      "recent": 2,
+      "single_hop": 3,
+      "unanswerable": 1
+    },
+    "sub20": {
+      "comparison": 3,
+      "multi_hop": 5,
+      "quantum": 2,
+      "recent": 3,
+      "single_hop": 6,
+      "unanswerable": 1
+    }
+  },
+  "total_questions": 46
+}

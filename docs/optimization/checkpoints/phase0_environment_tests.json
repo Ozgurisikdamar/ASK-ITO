@@ -1,0 +1,58 @@
+{
+  "phase": 0,
+  "recorded_at": "2026-11-02T12:55:02+00:00",
+  "git_sha": "e6ca012",
+  "hardware": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "logical_cpus": 4,
+    "ram_gb": 15.7,
+    "os": "Linux 6.18.44-fc-v185",
+    "python": "3.13.17"
+  },
+  "cpu_details": {
+    "CPU(s)": "4",
+    "Model name": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "Thread(s) per core": "1",
+    "Core(s) per socket": "4",
+    "Socket(s)": "1",
+    "L3 cache": "33 MiB (1 instance)"
+  },
+  "cpu_flags": [
+    "avx2",
+    "avx512f",
+    "avx512_vnni",
+    "f16c",
+    "fma"
+  ],
+  "swap": "none",
+  "gpu": "none",
+  "docker_daemon": "not available",
+  "postgres": "16.15 (native)",
+  "corpus": {
+    "documents": 258,
+    "chunks": 5988
+  },
+  "eval_questions": 46,
+  "tests": [
+    {
+      "command": "pytest -q",
+      "exit_code": 0,
+      "result": "87 passed, 1 warning",
+      "started_at": "2026-11-02T12:51:54Z"
+    },
+    {
+      "command": "npm run typecheck",
+      "exit_code": 0
+    },
+    {
+      "command": "npm run build",
+      "exit_code": 0
+    },
+    {
+      "command": "ruff check app tests scripts",
+      "exit_code": 1,
+      "result": "6 pre-existing findings (E402 x3 app/eval/run.py, F841 app/eval/testset_draft.py, F401 app/ingest/run.py, F401 tests/test_pipeline.py); identical on the clean tree"
+    }
+  ],
+  "notes": "Tests ran while the Ollama build was compiling (CPU contention); no timing assertions in tests."
+}

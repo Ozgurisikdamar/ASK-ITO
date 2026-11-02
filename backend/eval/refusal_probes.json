@@ -1,0 +1,16 @@
+{
+  "description": "Out-of-corpus questions for refusal correctness. Kept separate from the main eval set; each answer is absent from the indexed corpus (verified by keyword search over all chunks when the file was created). A correct response is the not-found answer.",
+  "expected": "not_found",
+  "questions": [
+    {"id": "probe-01", "kind": "near-domain", "question": "Who won the 2023 Nobel Prize in Literature and for which works?", "absent_keyword": "Fosse"},
+    {"id": "probe-02", "kind": "near-domain", "question": "Which organisation received the 2024 Nobel Peace Prize?", "absent_keyword": "Hidankyo"},
+    {"id": "probe-03", "kind": "near-domain", "question": "What did Claudia Goldin win the Nobel Prize in Economic Sciences for?", "absent_keyword": "Goldin"},
+    {"id": "probe-04", "kind": "near-domain", "question": "Which novels by Han Kang were cited when she received the Nobel Prize?", "absent_keyword": "Han Kang"},
+    {"id": "probe-05", "kind": "off-topic", "question": "How do you make a sourdough starter at home?", "absent_keyword": "sourdough"},
+    {"id": "probe-06", "kind": "off-topic", "question": "What is the current price of Bitcoin in US dollars?", "absent_keyword": "Bitcoin"},
+    {"id": "probe-07", "kind": "off-topic", "question": "Who painted the Mona Lisa and in which museum is it displayed?", "absent_keyword": "Mona Lisa"},
+    {"id": "probe-08", "kind": "off-topic", "question": "What is the population of Lisbon?", "absent_keyword": "Lisbon"},
+    {"id": "probe-09", "kind": "off-topic", "question": "How tall is the Burj Khalifa?", "absent_keyword": "Burj"},
+    {"id": "probe-10", "kind": "off-topic", "question": "What is the smoke point of extra virgin olive oil?", "absent_keyword": "olive oil"}
+  ]
+}

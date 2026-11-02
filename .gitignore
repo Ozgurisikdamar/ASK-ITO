@@ -40,3 +40,4 @@ backend/eval/.llm_cache/
 
 # OS
 .DS_Store
+backend/eval/checkpoints/
