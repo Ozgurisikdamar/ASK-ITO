@@ -264,6 +264,19 @@ def main() -> None:
     embed.warmup()
     reranker.warmup()
     warm = {"retrieval_models_s": round(time.perf_counter() - t, 2)}
+    if settings.llm_mode == "ollama":
+        # Load the model into RAM first with a long timeout: after a restart the
+        # weights come from a cold disk cache and loading alone can exceed the
+        # per-call LLM timeout. Recorded separately as the cold model load time.
+        import httpx
+
+        t = time.perf_counter()
+        r = httpx.post(f"{settings.llm_base_url.rstrip('/').removesuffix('/v1')}/api/generate",
+                       json={"model": settings.model_for("answer"), "prompt": "",
+                             "keep_alive": settings.llm_keep_alive}, timeout=3600)
+        r.raise_for_status()
+        warm["model_load_s"] = round(time.perf_counter() - t, 2)
+        warm["model_load_ollama_ms"] = round(r.json().get("load_duration", 0) / 1e6, 1)
     if settings.llm_mode != "mock":
         t = time.perf_counter()
         llm.chat([{"role": "user", "content": "Reply with OK."}], max_tokens=4,
