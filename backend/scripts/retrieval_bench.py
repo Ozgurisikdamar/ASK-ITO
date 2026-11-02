@@ -31,7 +31,7 @@ def parse() -> argparse.Namespace:
     ap.add_argument("--mode", default="hybrid_rerank",
                     choices=["bm25", "vector", "hybrid", "hybrid_rerank", "search", "overview"])
     ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
-                    help="any Settings env var, e.g. FAST_RERANK=false, FAST_TOP_K=20")
+                    help="any Settings env var, e.g. SEARCH_RERANK=true, FAST_TOP_K=20")
     ap.add_argument("--reranker")
     ap.add_argument("--pool", type=int)
     ap.add_argument("--max-length", type=int)

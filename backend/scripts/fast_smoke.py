@@ -60,7 +60,8 @@ def main() -> None:
 
     ck = Checkpoint(CHECKPOINT_DIR / f"smoke_{args.label}.jsonl")
     config = {"mode": args.mode, "model": settings.model_for("answer"),
-              "fast_rerank": settings.fast_rerank, "reranker": settings.reranker_model,
+              "search_rerank": settings.search_rerank,
+              "answer_rerank": settings.answer_rerank, "reranker": settings.reranker_model,
               "rerank_pool": settings.rerank_pool, "rerank_max_length": settings.rerank_max_length,
               "fast_top_k": settings.fast_top_k,
               "fast_min_evidence_score": settings.fast_min_evidence_score,

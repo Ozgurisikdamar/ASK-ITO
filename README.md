@@ -5,17 +5,22 @@ corpus: recent Nobel Prizes in Physics, Chemistry and Physiology/Medicine, a
 quantum-computing branch, and core AI topics.
 
 The default path is **Fast Hybrid RAG**: BM25 + pgvector retrieval → RRF
-fusion → optional cross-encoder reranker → **one** local LLM call (Qwen3.5-9B
-via Ollama) that writes a short cited answer. Results appear as soon as
-retrieval finishes and the answer streams in above them. Three modes:
+fusion → ranked sources, and — only when the user asks for it — a cross-encoder
+rerank and **one** local LLM call (Qwen3.5-9B via Ollama) that writes a short
+cited answer. Three modes:
 
-- **Answer** (default, `overview`): retrieval + exactly one LLM call, citations.
-- **Sources** (`search`): the same retrieval, ranked passages only, no LLM call.
+- **Search** (default, `search`): ranked passages, no LLM call (~0.1 s
+  retrieval on a 4-core CPU).
+- **Answer** (`overview`, opt-in: "Generate AI answer"): bge rerank + exactly one
+  local LLM call, citations. On a CPU-only machine this takes about a minute.
 - **AI Mode** (`agentic`, opt-in): the multi-step agent (analysis, query
   rewriting, sufficiency loop) for harder multi-hop questions.
 
-When no passage is relevant enough (reranker score below
-`FAST_MIN_EVIDENCE_SCORE`) the answer is "not found" and the LLM is not called.
+When no passage passes the evidence cut-off (a heuristic on the reranker score,
+`FAST_MIN_EVIDENCE_SCORE`; it stops clearly off-topic queries, not every
+unsupported question) the answer is "not found" and the LLM is not called.
+Citation numbers point to retrieved passages; they do not by themselves verify
+each claim.
 A separate evaluation panel compares pipeline configurations with **RAGAS** and
 classic retrieval metrics (Recall@k, MRR, nDCG); evaluation runs offline and
 never during a search. Everything runs locally; no paid or cloud service is used.
@@ -56,7 +61,8 @@ original target for feasibility; see ADR-0007.
 - **BM25**: `bm25s` (English stopwords + stemming)
 - **Embedding**: `BAAI/bge-base-en-v1.5` (768-dim, config-driven)
 - **Reranker**: `BAAI/bge-reranker-base` (default, top 20 candidates, 512 tokens) or
-  `cross-encoder/ms-marco-MiniLM-L-6-v2`; switchable off in the fast modes (`FAST_RERANK`)
+  `cross-encoder/ms-marco-MiniLM-L-6-v2`; off by default in Search (`SEARCH_RERANK`),
+  on for answers (`ANSWER_RERANK`)
 - **LLM**: `qwen3.5:9b` on local Ollama (native API, streaming, thinking off);
   a locally served OpenAI-compatible endpoint optionally; `mock` mode for tests.
   Local only: non-local endpoints are refused (`LLM_LOCAL_ONLY=true`); no fallback
@@ -210,7 +216,8 @@ for the full tables:
 
 - Retrieval without reranker (embedding + BM25 + pgvector + RRF): ~0.1 s p50.
 - bge-reranker-base over 20 candidates: ~7.7 s p50 at 512 tokens (default),
-  ~4 s at 256 tokens; MiniLM ~0.8 s; `FAST_RERANK=false` skips it.
+  ~4 s at 256 tokens; MiniLM ~0.8 s. Search skips it by default
+  (`SEARCH_RERANK=false`); answers use it (`ANSWER_RERANK=true`).
 - qwen3.5:9b (Q4_K_M) on this CPU: prefill ~19–26 tok/s, generation ~3.2 tok/s;
   a Fast Answer took 64 s median end to end (first token after ~19–29 s) on 12
   eval questions, versus 92 s for the previous default path with the same model.

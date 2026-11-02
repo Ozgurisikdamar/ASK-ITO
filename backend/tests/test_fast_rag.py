@@ -20,15 +20,23 @@ BACKEND = Path(__file__).resolve().parents[1]
 
 # -- unit ----------------------------------------------------------------------
 
-def test_default_mode_is_fast_answer_and_agentic_is_opt_in():
-    assert settings.default_mode == "overview"
+def test_default_mode_is_search_and_generation_is_opt_in():
+    assert settings.default_mode == "search"  # no LLM call unless the user asks
     assert "agentic" not in pipeline.RETRIEVAL_MODES  # never part of the fast pipeline
     from app.api.search import SearchRequest
 
-    assert SearchRequest(query="x").mode == "overview"
+    assert SearchRequest(query="x").mode == "search"
 
 
-def test_reranker_switch_only_affects_fast_modes(monkeypatch):
+def test_reranker_defaults_and_switches(monkeypatch):
+    # defaults: Search without reranker (fast on CPU), Answer with it
+    assert settings.search_rerank is False and settings.answer_rerank is True
+    monkeypatch.setattr(settings, "fast_rerank", None)
+    assert not pipeline.uses_reranker("search") and pipeline.uses_reranker("overview")
+    monkeypatch.setattr(settings, "search_rerank", True)
+    monkeypatch.setattr(settings, "answer_rerank", False)
+    assert pipeline.uses_reranker("search") and not pipeline.uses_reranker("overview")
+    # legacy FAST_RERANK overrides both
     monkeypatch.setattr(settings, "fast_rerank", True)
     assert pipeline.uses_reranker("overview") and pipeline.uses_reranker("search")
     monkeypatch.setattr(settings, "fast_rerank", False)
@@ -46,7 +54,7 @@ def test_fast_top_k_overrides_channel_pool_for_fast_modes_only(monkeypatch):
 
 
 def test_evidence_filter_uses_reranked_scores_only(monkeypatch):
-    monkeypatch.setattr(settings, "fast_rerank", True)
+    monkeypatch.setattr(settings, "answer_rerank", True)
     ranked = [(1, 0.9), (2, 0.4), (3, 0.2), (4, 0.016)]  # last one: RRF tail score
     monkeypatch.setattr(settings, "fast_min_evidence_score", 0.3)
     assert service.evidence_filter(ranked, "overview", n_reranked=3) == [(1, 0.9), (2, 0.4)]
@@ -56,7 +64,7 @@ def test_evidence_filter_uses_reranked_scores_only(monkeypatch):
     assert service.evidence_filter(ranked, "overview", 3) == ranked
     monkeypatch.setattr(settings, "fast_min_evidence_score", 0.3)
     assert service.evidence_filter(ranked, "hybrid_rerank", 3) == ranked  # not a fast mode
-    monkeypatch.setattr(settings, "fast_rerank", False)  # no CE scores -> no cut-off
+    monkeypatch.setattr(settings, "answer_rerank", False)  # no CE scores -> no cut-off
     assert service.evidence_filter(ranked, "overview", 0) == ranked
 
 
@@ -149,7 +157,7 @@ def test_hybrid_uses_both_channels_fused_with_rrf():
 
 @needs_index
 def test_abstains_without_llm_call_when_no_passage_reaches_the_threshold(monkeypatch):
-    monkeypatch.setattr(settings, "fast_rerank", True)
+    monkeypatch.setattr(settings, "answer_rerank", True)
     monkeypatch.setattr(settings, "fast_min_evidence_score", 1.01)  # unreachable
     pipeline.cache_clear()
     llm = CitingLLM()
@@ -188,7 +196,7 @@ def test_stream_fast_answer_reports_stage_timings_and_models(monkeypatch):
             "total"} <= set(t)
     assert done["metrics"]["llm"]["calls"] == 1
     assert done["metrics"]["models"]["reranker"] == (
-        settings.reranker_model if settings.fast_rerank else None)
+        settings.reranker_model if pipeline.uses_reranker("overview") else None)
     assert done["reranker"] == done["metrics"]["models"]["reranker"]
 
 
@@ -199,7 +207,7 @@ def test_stream_abstention_reports_no_llm_model(monkeypatch):
 
     monkeypatch.setattr(answer_cache, "get", lambda *a, **k: None)
     monkeypatch.setattr(answer_cache, "put", lambda *a, **k: None)
-    monkeypatch.setattr(settings, "fast_rerank", True)
+    monkeypatch.setattr(settings, "answer_rerank", True)
     monkeypatch.setattr(settings, "fast_min_evidence_score", 1.01)
     pipeline.cache_clear()
     events = list(stream_api.produce("sourdough bread", "overview", "all", threading.Event()))

@@ -117,10 +117,15 @@ class Settings(BaseSettings):
     agent_reuse_rerank_scores: bool = False
     final_k: int = 5
 
-    # Fast path (default): "overview" = Fast Answer (hybrid retrieval + optional
-    # rerank + exactly one LLM call), "search" = the same retrieval, no LLM call.
-    default_mode: str = "overview"
-    fast_rerank: bool = True  # cross-encoder stage in the fast modes
+    # Fast path: "search" (default) = hybrid retrieval, ranked sources, no LLM call;
+    # "overview" = Answer: retrieval + rerank + exactly one LLM call (opt-in in the UI).
+    default_mode: str = "search"
+    # Cross-encoder stage per fast mode. Search defaults to off so results come back
+    # in ~0.1 s on a CPU; Answer keeps the bge reranker (context quality + evidence
+    # cut-off). FAST_RERANK, if set, overrides both (backward compatibility).
+    search_rerank: bool = False
+    answer_rerank: bool = True
+    fast_rerank: bool | None = None
     fast_top_k: int = 0  # candidates per channel in the fast modes (0 = BM25/VECTOR_TOP_K)
     # Minimum cross-encoder score for a passage to be used as evidence in the fast
     # modes (reranker on only; 0 = off). No passage above it -> "not found" answer

@@ -30,9 +30,15 @@ RERANK_MODES = {"hybrid_rerank", "hybrid_rerank_rewrite"}  # always rerank
 
 
 def uses_reranker(mode: str) -> bool:
-    """Cross-encoder stage on/off. Fixed for the evaluation modes; for the fast
-    modes it is FAST_RERANK (so it can be switched off when the CPU is slow)."""
-    return mode in RERANK_MODES or (mode in FAST_MODES and settings.fast_rerank)
+    """Cross-encoder stage on/off. Fixed for the evaluation modes; SEARCH_RERANK
+    for "search", ANSWER_RERANK for "overview" (FAST_RERANK overrides both)."""
+    if mode in RERANK_MODES:
+        return True
+    if mode not in FAST_MODES:
+        return False
+    if settings.fast_rerank is not None:
+        return settings.fast_rerank
+    return settings.search_rerank if mode == "search" else settings.answer_rerank
 
 
 def channel_k(mode: str) -> tuple[int, int]:
