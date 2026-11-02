@@ -47,8 +47,9 @@ original target for feasibility; see ADR-0007.
 - **BM25**: `bm25s` (English stopwords + stemming)
 - **Embedding**: `BAAI/bge-base-en-v1.5` (768-dim, config-driven)
 - **Reranker**: `cross-encoder/ms-marco-MiniLM-L-6-v2` (default) or `BAAI/bge-reranker-base`
-- **LLM**: local Ollama (native API, streaming) by default; any OpenAI-compatible
-  endpoint (e.g. Groq free tier) optionally; `mock` mode for tests
+- **LLM**: local Ollama (native API, streaming) by default; a locally served
+  OpenAI-compatible endpoint optionally; `mock` mode for tests. Local only:
+  non-local endpoints are refused (`LLM_LOCAL_ONLY=true`)
 - **Backend**: Python 3.11+, FastAPI, psycopg 3
 - **Frontend**: React + Vite + TypeScript + Tailwind, Recharts
 - **Eval**: RAGAS + Recall@k / MRR / nDCG
@@ -86,7 +87,7 @@ With `make`: `make up`, `make model`, `make migrate`, `make ingest`, `make index
 (a data-center/shared IP may be rate-limited — the client backs off and the run
 is resumable). See ADR-0007/0008.
 
-### LLM: local Ollama (default) or Groq (optional, free tier)
+### LLM: local Ollama
 
 **Local (default).** The `ollama` service starts with the stack and keeps the
 model loaded in RAM (`OLLAMA_KEEP_ALIVE=24h`). Pick the model in `.env`:
@@ -109,15 +110,11 @@ RAM by default, which is less than a ~20 GB model needs. Raise it in
 memory=26GB
 ```
 
-**Groq (optional).** For a fast hosted model without a GPU, create a free key
-at https://console.groq.com/keys, then in `.env` uncomment the Groq block
-(`LLM_MODE=openai`, `LLM_BASE_URL=https://api.groq.com/openai/v1`,
-`LLM_API_KEY`, `LLM_DEFAULT_MODEL=qwen/qwen3-32b`,
-`LLM_EXTRA_BODY={"reasoning_effort":"none"}`) and `./askito restart`. Check
-current model ids at https://console.groq.com/docs/models. Queries and the
-retrieved Wikipedia passages are sent to Groq when it is enabled. Set
-`LLM_FALLBACK_MODE=ollama` (+ `LLM_FALLBACK_MODEL`) to fall back to the local
-model when the free-tier limit is reached.
+**Local only.** All inference — answers, agent steps and the RAGAS judge —
+runs on local models. `LLM_LOCAL_ONLY=true` (default) refuses any endpoint that
+does not resolve to a loopback or private-network address. A locally served
+OpenAI-compatible runtime (llama.cpp server, vLLM) can be used with
+`LLM_MODE=openai`.
 
 `LLM_MODE=mock` uses a deterministic stub (dev/tests): retrieval, indexing and
 retrieval metrics work fully without an LLM; answers and RAGAS need a real one.

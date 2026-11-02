@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     llm_fallback_base_url: str = "http://localhost:11434"
     llm_fallback_api_key: str = "ollama"
     llm_fallback_model: str = ""
+    # Refuse LLM/judge endpoints that are not loopback/private-network (app.llm.policy)
+    llm_local_only: bool = True
+    llm_judge_max_tokens: int = 1024  # RAGAS judge generation limit
+    ragas_timeout_s: int = 1800  # per RAGAS job (single worker, local CPU)
 
     # Ingest
     # Wikimedia requires a descriptive User-Agent with a contact (URL or email);

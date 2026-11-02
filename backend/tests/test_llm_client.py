@@ -84,6 +84,8 @@ def test_ollama_retries_without_think_field_when_rejected():
 
     def handler(req):
         body = json.loads(req.content)
+        if req.url.path != "/api/chat":
+            return httpx.Response(404, json={"error": "unknown"})  # /api/show: caps unknown
         bodies.append(body)
         if "think" in body:
             return httpx.Response(400, json={"error": "model does not support think"})
@@ -173,3 +175,117 @@ def test_mock_stream_respects_cancel():
     first = next(gen)
     cancel.set()
     assert first and list(gen) == []
+
+
+# -- capabilities, usage accounting, context-overflow guard -------------------
+
+def _ollama_handler(caps, chat_payload, seen):
+    def handler(req):
+        if req.url.path == "/api/show":
+            return httpx.Response(200, json={"capabilities": caps})
+        seen.append(json.loads(req.content))
+        return httpx.Response(200, json=chat_payload)
+    return handler
+
+
+def test_think_field_omitted_for_models_without_thinking_capability():
+    seen = []
+    c = _wire(OllamaClient("http://o:11434", default_model="m"),
+              _ollama_handler(["completion"], {"message": {"content": "x"}}, seen))
+    c.chat([{"role": "user", "content": "q"}])
+    assert "think" not in seen[0]
+    seen.clear()
+    c2 = _wire(OllamaClient("http://o:11434", default_model="m"),
+               _ollama_handler(["completion", "thinking"], {"message": {"content": "x"}}, seen))
+    c2.chat([{"role": "user", "content": "q"}])
+    assert seen[0]["think"] is False
+
+
+def test_usage_recorded_and_context_overflow_warned(monkeypatch, caplog):
+    monkeypatch.setattr(llm.settings, "llm_num_ctx", 1000)
+    payload = {"message": {"content": "x"}, "prompt_eval_count": 950, "eval_count": 40,
+               "prompt_eval_duration": 2_000_000_000, "eval_duration": 4_000_000_000,
+               "load_duration": 1_000_000, "done_reason": "stop", "model": "m"}
+    seen = []
+    c = _wire(OllamaClient("http://o:11434", default_model="m"),
+              _ollama_handler(["completion"], payload, seen))
+    with caplog.at_level("WARNING", logger="askito.llm"):
+        c.chat([{"role": "user", "content": "q"}], max_tokens=100)
+    u = c.last_usage
+    assert (u["prompt_tokens"], u["completion_tokens"], u["eval_ms"]) == (950, 40, 4000.0)
+    assert u["context_overflow"] is True and c.context_overflows == 1
+    assert "context window" in caplog.text
+    payload["prompt_eval_count"] = 100
+    c.chat([{"role": "user", "content": "q"}], max_tokens=100)
+    assert c.last_usage["context_overflow"] is False and c.context_overflows == 1
+
+
+def test_payload_options_follow_config(monkeypatch):
+    monkeypatch.setattr(llm.settings, "llm_num_ctx", 8192)
+    monkeypatch.setattr(llm.settings, "llm_num_thread", 3)
+    monkeypatch.setattr(llm.settings, "llm_keep_alive", "10m")
+    seen = []
+    c = _wire(OllamaClient("http://o:11434", default_model="m"),
+              _ollama_handler(None, {"message": {"content": "x"}}, seen))
+    c.chat([{"role": "user", "content": "q"}], max_tokens=77, temperature=0.2)
+    opts = seen[0]["options"]
+    assert opts == {"temperature": 0.2, "num_ctx": 8192, "num_predict": 77, "num_thread": 3}
+    assert seen[0]["keep_alive"] == "10m"
+    monkeypatch.setattr(llm.settings, "llm_num_thread", 0)
+    c.chat([{"role": "user", "content": "q"}])
+    assert "num_thread" not in seen[1]["options"]  # 0 = let Ollama decide
+
+
+def test_timeout_surfaces_as_error():
+    def handler(req):
+        if req.url.path == "/api/show":
+            return httpx.Response(404)
+        raise httpx.ReadTimeout("slow", request=req)
+
+    c = _wire(OllamaClient("http://o:11434", default_model="m"), handler)
+    with pytest.raises(httpx.ReadTimeout):
+        c.chat([{"role": "user", "content": "q"}])
+
+
+# -- local-only policy -------------------------------------------------------
+
+def test_local_only_policy_accepts_local_and_refuses_remote():
+    from app.llm.policy import RemoteEndpointError, ensure_local_url
+
+    ensure_local_url("http://127.0.0.1:11434")
+    ensure_local_url("http://localhost:11434", resolver=lambda h: ["127.0.0.1", "::1"])
+    ensure_local_url("http://ollama:11434", resolver=lambda h: ["172.18.0.3"])
+    ensure_local_url("http://192.168.1.20:8080/v1")
+    with pytest.raises(RemoteEndpointError):
+        ensure_local_url("https://api.example.com/v1", resolver=lambda h: ["93.184.216.34"])
+    with pytest.raises(RemoteEndpointError):
+        ensure_local_url("http://8.8.8.8:11434")
+
+    def unresolvable(h):
+        raise OSError("no such host")
+
+    with pytest.raises(RemoteEndpointError):
+        ensure_local_url("http://nowhere.invalid", resolver=unresolvable)
+
+
+def test_make_client_enforces_local_only(monkeypatch):
+    from app.llm.policy import RemoteEndpointError
+
+    monkeypatch.setattr(llm.settings, "llm_local_only", True)
+    with pytest.raises(RemoteEndpointError):
+        llm.make_client("openai", "http://8.8.8.8/v1", "k", "m")
+    assert isinstance(llm.make_client("ollama", "http://127.0.0.1:11434", ""), OllamaClient)
+    monkeypatch.setattr(llm.settings, "llm_local_only", False)
+    assert isinstance(llm.make_client("openai", "http://8.8.8.8/v1", "k", "m"),
+                      OpenAICompatClient)
+
+
+def test_role_model_fallback(monkeypatch):
+    s = llm.settings
+    monkeypatch.setattr(s, "llm_default_model", "base")
+    for attr in ("llm_agent_model", "llm_answer_model", "llm_judge_model"):
+        monkeypatch.setattr(s, attr, "")
+    assert {r: s.model_for(r) for r in ("agent", "answer", "judge")} == \
+        {"agent": "base", "answer": "base", "judge": "base"}
+    monkeypatch.setattr(s, "llm_judge_model", "judge-14b")
+    assert s.model_for("judge") == "judge-14b" and s.model_for("agent") == "base"

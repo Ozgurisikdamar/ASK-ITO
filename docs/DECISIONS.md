@@ -162,9 +162,9 @@ OpenAI-compatible path, because only the native API exposes `think`,
 `keep_alive`, `num_ctx`, `num_thread` and NDJSON streaming. Reasoning output is
 off by default (`LLM_THINK=false`); `<think>` blocks are still stripped from
 any provider, including across streamed chunks. `LLM_MODE=openai` covers any
-OpenAI-compatible host. Groq's free tier is documented as an optional fast
-provider (zero cost, but queries and retrieved passages leave the machine);
-`LLM_FALLBACK_*` switches to the local model when the primary fails before
+OpenAI-compatible host served locally (superseded in part by ADR-0018: hosted
+providers are no longer documented or allowed by default);
+`LLM_FALLBACK_*` switches to a second local endpoint when the primary fails before
 producing output (e.g. HTTP 429). A trailing `/v1` in an Ollama URL is accepted.
 The default model stays at or above 27B parameters: `qwen3:30b` (MoE, ~3B
 active, the practical choice on CPU) with `qwen3.8:27b` (dense) documented as
@@ -198,3 +198,23 @@ MiniLM is the model the spec names as the lighter option; it is above the
 hybrid baseline, within 0.03 nDCG@10 of bge and under one second, so it is the
 default. `RERANKER_MODEL=BAAI/bge-reranker-base` restores the stronger, slower
 model. Re-measure with `backend/scripts/bench.py --reranker <model>`.
+
+## ADR-0018: Local-only inference policy
+All inference — answers, agent steps, query rewriting and the RAGAS judge — runs
+on locally hosted models. `LLM_LOCAL_ONLY=true` (default) makes the LLM client
+factory refuse any endpoint (primary, fallback, judge) whose host does not
+resolve to a loopback, private-network or link-local address
+(`app/llm/policy.py`). Hosted-provider examples were removed from
+`.env.example` and the README. The OpenAI-compatible adapter remains for local
+runtimes (llama.cpp server, vLLM). No API keys are needed or configured.
+
+## ADR-0019: RAGAS judge through the project's own LLM client
+The RAGAS judge previously used an OpenAI client pointed at `LLM_BASE_URL`; with
+the native Ollama URL (no `/v1`) it could not connect, and it could not turn
+thinking off. The judge is now a small ragas `BaseRagasLLM` adapter over the
+project client (`ragas_eval.make_judge_llm`): Ollama native API, thinking off,
+JSON mode, `LLM_JUDGE_MODEL` role, `LLM_JUDGE_MAX_TOKENS`, local-only policy.
+RAGAS runs with one worker and a long timeout (`RAGAS_TIMEOUT_S`) because a
+single local model serves one request at a time; parallel judge jobs would only
+queue and time out.
+

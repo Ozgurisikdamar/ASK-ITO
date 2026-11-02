@@ -4,8 +4,9 @@ Providers (LLM_MODE):
   * "ollama": local Ollama native API (/api/chat). Sends `think` (off by default:
               reasoning tokens are slow on CPU), `keep_alive` (keeps the model in
               RAM between queries) and context/thread options. NDJSON streaming.
-  * "openai": any OpenAI-compatible endpoint (e.g. Groq's free tier).
-              SSE streaming; LLM_EXTRA_BODY is merged into each request body.
+  * "openai": an OpenAI-compatible endpoint served locally (llama.cpp server,
+              vLLM, LM Studio, ...). SSE streaming; LLM_EXTRA_BODY is merged
+              into each request body.
   * "mock":   deterministic offline stub (dev/tests); streams word by word.
 
 All providers expose `chat()` (optionally JSON mode) and `stream_chat()`, use a
@@ -13,10 +14,16 @@ persistent HTTP client, retry 429/5xx honouring Retry-After, and strip any
 `<think>...</think>` block (also across stream chunk boundaries). An optional
 fallback provider takes over when the primary fails before producing output.
 Model names come from config only; callers pass `settings.model_for(role)`.
+
+With LLM_LOCAL_ONLY=true (default) every endpoint must be local (app.llm.policy).
+After each Ollama call `last_usage` holds the token counts and durations Ollama
+reported; a prompt that fills the context window (Ollama would silently drop
+its beginning) is logged as a warning and counted in `context_overflows`.
 """
 from __future__ import annotations
 
 import json
+import logging
 import re
 import threading
 import time
@@ -26,7 +33,9 @@ from typing import Iterator, Protocol
 import httpx
 
 from app.config import settings
+from app.llm.policy import ensure_local_url
 
+log = logging.getLogger("askito.llm")
 Message = dict[str, str]
 _THINK_BLOCK = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 
@@ -154,6 +163,45 @@ class OllamaClient(_HTTPClient):
         super().__init__(base, api_key)
         self.default_model = default_model
         self._no_think_field: set[str] = set()  # models that reject the `think` field
+        self._caps: dict[str, list[str] | None] = {}
+        self.last_usage: dict = {}
+        self.context_overflows = 0
+
+    def capabilities(self, model: str) -> list[str] | None:
+        """Model capabilities from /api/show (cached); None if unknown."""
+        if model not in self._caps:
+            try:
+                resp = self._http.post(f"{self.base_url}/api/show", json={"model": model},
+                                       timeout=settings.llm_ping_timeout_s * 5)
+                self._caps[model] = resp.json().get("capabilities") if resp.status_code == 200 \
+                    else None
+            except Exception:  # noqa: BLE001
+                self._caps[model] = None
+        return self._caps[model]
+
+    def _record_usage(self, data: dict, body: dict) -> None:
+        opts = body.get("options", {})
+        usage = {
+            "model": data.get("model") or body.get("model"),
+            "prompt_tokens": data.get("prompt_eval_count"),
+            "completion_tokens": data.get("eval_count"),
+            "prompt_eval_ms": round(data.get("prompt_eval_duration", 0) / 1e6, 1),
+            "eval_ms": round(data.get("eval_duration", 0) / 1e6, 1),
+            "load_ms": round(data.get("load_duration", 0) / 1e6, 1),
+            "total_ms": round(data.get("total_duration", 0) / 1e6, 1),
+            "done_reason": data.get("done_reason"),
+            "num_ctx": opts.get("num_ctx"),
+        }
+        limit = (opts.get("num_ctx") or 0) - (opts.get("num_predict") or 0)
+        prompt_tokens = usage["prompt_tokens"] or 0
+        usage["context_overflow"] = bool(opts.get("num_ctx")) and prompt_tokens >= limit
+        if usage["context_overflow"]:
+            self.context_overflows += 1
+            log.warning(
+                "LLM prompt fills the context window (%s prompt tokens, num_ctx=%s, "
+                "num_predict=%s): the start of the prompt may have been truncated; "
+                "raise LLM_NUM_CTX", prompt_tokens, opts.get("num_ctx"), opts.get("num_predict"))
+        self.last_usage = usage
 
     def _model(self, model: str | None) -> str:
         m = model or self.default_model or settings.model_for("answer")
@@ -185,7 +233,9 @@ class OllamaClient(_HTTPClient):
             "model": model, "messages": messages, "stream": stream,
             "keep_alive": settings.llm_keep_alive, "options": options,
         }
-        if model not in self._no_think_field:
+        caps = self.capabilities(model)
+        supports_think = caps is None or "thinking" in caps
+        if model not in self._no_think_field and supports_think:
             body["think"] = settings.llm_think
         if json_mode:
             body["format"] = "json"
@@ -203,7 +253,14 @@ class OllamaClient(_HTTPClient):
 
     def chat(self, messages, *, temperature=0.0, model=None, json_mode=False, max_tokens=None):
         body = self._body(messages, model, temperature, max_tokens, json_mode, stream=False)
-        data = self._with_think_fallback(lambda b: self._post(f"{self.base_url}/api/chat", b), body)
+        sent = {}
+
+        def call(b):
+            sent["body"] = b
+            return self._post(f"{self.base_url}/api/chat", b)
+
+        data = self._with_think_fallback(call, body)
+        self._record_usage(data, sent["body"])
         return strip_think(data.get("message", {}).get("content", ""))
 
     def stream_chat(self, messages, *, temperature=0.0, model=None, max_tokens=None, cancel=None):
@@ -219,6 +276,7 @@ class OllamaClient(_HTTPClient):
                 if piece:
                     yield piece
                 if obj.get("done"):
+                    self._record_usage(obj, b)
                     break
             tail = filt.flush()
             if tail:
@@ -371,6 +429,8 @@ class FallbackClient:
 def make_client(mode: str, base_url: str, api_key: str, default_model: str = ""):
     if mode == "mock":
         return MockLLMClient()
+    if settings.llm_local_only:
+        ensure_local_url(base_url, f"LLM endpoint ({mode})")
     if mode == "openai":
         return OpenAICompatClient(base_url, api_key, default_model)
     if mode == "ollama":
