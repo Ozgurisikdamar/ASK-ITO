@@ -47,7 +47,7 @@ Treat these as **historical baselines only**. Validate current code, dataset, ru
 8. Do not silently swallow exceptions. Errors should be observable and actionable; never expose secrets or full internal exception details in public API responses.
 9. No API keys, local paths, personal data, or secrets in committed files. Update `.env.example` only with placeholders.
 10. Keep configuration backward compatible where feasible. Document every new env variable and its default.
-11. Do not add a paid cloud dependency as the default. Grok/xAI, OpenAI or other hosted APIs are optional experiments only; local Ollama remains the default.
+11. **Strictly local and zero-cost API policy:** Do not use Grok/xAI, OpenAI, Anthropic, Gemini, any other paid/hosted LLM API, or any cloud LLM endpoint. Do not request or configure API keys. All inference, including answer generation, judge/RAGAS, rewriting, and agent decisions, must use locally running models through Ollama (or another local runtime already supported by the project). No paid API calls.
 12. If hardware/model downloads are unavailable in Claude's execution environment, clearly label those experiments **NOT RUN** and provide commands for the user to execute. Do not simulate local model performance.
 
 ## 2. Phase 0 — Audit and establish reproducible baseline (no code changes yet)
@@ -209,7 +209,7 @@ Use the existing evaluation set; confirm current count and dataset integrity. Us
 - Unsupported-claim / hallucination audit using a documented method.
 - Unanswerable-question refusal correctness.
 
-**RAGAS judge must be a real, configured model, not mock.** Report judge model and configuration. If judge is unavailable, label metrics unavailable and do not claim quality improvement.
+**RAGAS judge must be a real locally running model, not mock and not a cloud API.** Use a local Ollama judge model, ideally a separate role/config if resources permit. Report judge model and configuration. If local judge is unavailable or CPU/RAM limits prevent running it, label metrics unavailable and do not claim quality improvement. Do not fall back to a hosted API.
 
 ### Latency / operations
 - p50 and p95 end-to-end latency.
@@ -237,14 +237,9 @@ Run these variants (add columns if additional experiments are needed):
 | D | Best model so far | Adaptive agent | Existing | Agent-loop improvement |
 | E | Best model so far | Adaptive agent | smaller pool / candidate reranker | Reranker optimization |
 | F | Best local model | Final optimized path | Final reranker | Candidate release configuration |
-| G (optional) | Grok/xAI API | Final optimized path | Final reranker | Cloud quality/latency/cost comparison |
+| G (optional) | Another locally installed model | Final optimized path | Final reranker | Additional local model comparison |
 
-Grok is **optional** and must not be required for local mode. If evaluated:
-- Use official current xAI API docs and current pricing.
-- Keep the API key in environment variables/secrets.
-- Do not commit secrets or expose key in logs.
-- Record cost per query, latency, privacy/data-transfer implications and provider availability.
-- Do not claim Grok is free unless verified from current official terms.
+All experiments must remain local. Do not use Grok/xAI or any hosted API, even as an optional fallback. Do not add cloud model code, cloud credentials, or cloud provider configuration. If the project currently has a cloud provider implementation, do not invoke it; keep the optimization scope local-only.
 
 ### Default decision policy
 Recommend the configuration with the best quality/latency trade-off, not the lowest latency alone.
@@ -314,7 +309,7 @@ Create/update:
 10. Reproduction commands for the user.
 11. Rollback instructions.
 12. Explicit recommendation: Qwen3:8B vs Qwen3.5:9B vs other tested options, supported by measured evidence.
-13. Separate local-only recommendation from any optional cloud/Grok recommendation.
+13. Confirm that all measured inference and evaluation remained local and no paid/cloud API was called.
 14. Open issues and next steps.
 
 ## 11. Git workflow and handoff
