@@ -68,8 +68,11 @@ def infer_role(messages: list[dict]) -> str:
     return "other"
 
 
+RUNTIME_PROCS = ("ollama", "llama-server")  # Ollama server + its model runner
+
+
 class ResourceSampler:
-    """Samples RSS and CPU time of all ollama processes once per second."""
+    """Samples RSS and CPU time of the Ollama server and runner processes (1 s)."""
 
     def __init__(self) -> None:
         self.peak_rss_mb = 0.0
@@ -84,7 +87,7 @@ class ResourceSampler:
         for p in Path("/proc").iterdir():
             if p.name.isdigit():
                 try:
-                    if (p / "comm").read_text().strip().startswith("ollama"):
+                    if (p / "comm").read_text().strip().startswith(RUNTIME_PROCS):
                         out.append(int(p.name))
                 except OSError:
                     pass
