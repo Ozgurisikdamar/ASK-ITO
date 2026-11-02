@@ -1,0 +1,11 @@
+{
+  "recorded_at": "2026-11-02T18:55:00Z",
+  "code": "working tree after d73b77a + adaptive agent switches (all switches off by default)",
+  "tests": [
+    {"command": "cd backend && pytest -q", "exit_code": 0, "result": "119 passed, 1 warning (starlette deprecation)", "duration_s": 143, "llm_mode": "mock (conftest)", "db_index_tests": "run (index/DB present)"},
+    {"command": "cd backend && ruff check app tests scripts", "exit_code": 1, "result": "6 findings, all pre-existing on the base commit (E402 x3 app/eval/run.py, F841 app/eval/testset_draft.py, F401 app/ingest/run.py, F401 tests/test_pipeline.py); no findings in new code"},
+    {"command": "cd frontend && npm run typecheck", "exit_code": 0},
+    {"command": "cd frontend && npm run build", "exit_code": 0}
+  ],
+  "notes": "Commits 9699db3 and d73b77a were pushed after light unit tests only; this full run (DB/index integration tests included) is their complete verification."
+}

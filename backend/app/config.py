@@ -102,6 +102,20 @@ class Settings(BaseSettings):
     agent_timeout_s: int = 180
     agent_answer_temperature: float = 0.0
     agent_max_subquestions: int = 4
+    # Adaptive agent (each switch is off by default = original behaviour; see ADR)
+    # rewrite policy: always | skip_simple (no rewrite for simple questions) |
+    #   skip_subquestions (no rewrite of LLM-written sub-questions) | never
+    agent_rewrite_policy: str = "always"
+    # skip the LLM sufficiency check when every sub-question already has a passage
+    # with cross-encoder score >= agent_coverage_min_score; simple questions get at
+    # most agent_max_extra_rounds_simple extra rounds
+    agent_adaptive_sufficiency: bool = False
+    agent_coverage_min_score: float = 0.5
+    agent_max_extra_rounds_simple: int = 1
+    # final rerank over the top-N union candidates (0 = whole union, original);
+    # (query, passage) pairs already scored in this request are never re-scored
+    agent_final_rerank_pool: int = 0
+    agent_reuse_rerank_scores: bool = False
     final_k: int = 5
 
     # Answer generation

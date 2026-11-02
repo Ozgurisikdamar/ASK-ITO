@@ -65,7 +65,24 @@ def _analyse(llm: _CountingLLM, query: str, trace: list[dict]) -> Analysis:
     return analysis
 
 
-def _write_query(llm: _CountingLLM, subq: str, trace: list[dict]) -> str:
+def _skip_rewrite(analysis: Analysis, is_subquestion: bool) -> str | None:
+    """Reason to skip the rewrite under AGENT_REWRITE_POLICY (None = rewrite)."""
+    policy = settings.agent_rewrite_policy
+    if policy == "never":
+        return "policy=never"
+    if policy == "skip_simple" and analysis.qtype == "simple" and not is_subquestion:
+        return "simple question"
+    if policy == "skip_subquestions" and is_subquestion:
+        return "sub-question already written by the analysis step"
+    return None
+
+
+def _write_query(llm: _CountingLLM, subq: str, trace: list[dict],
+                 skip_reason: str | None = None) -> str:
+    if skip_reason:
+        trace.append({"step": "rewrite_skipped", "input": subq, "output": skip_reason,
+                      "duration_ms": 0})
+        return subq
     # rewrite only if we can spare a call (keep one for the final answer)
     if llm.remaining <= 2:
         return subq
@@ -81,11 +98,16 @@ def _write_query(llm: _CountingLLM, subq: str, trace: list[dict]) -> str:
     return rewritten
 
 
-def _search(query_text: str, domain: str | None, trace: list[dict]) -> list[tuple[int, float]]:
+def _search(query_text: str, domain: str | None, trace: list[dict],
+            scored: dict | None = None) -> list[tuple[int, float]]:
     t0 = _now()
     res = pipeline.run_retrieval(
         query_text, "hybrid_rerank", domain=domain, final_k=max(settings.final_k, 8)
     )
+    if scored is not None:  # remember cross-encoder scores of this search's pool
+        n = res.counts.get("reranked", 0)
+        for cid, score in res.ranked[:n]:
+            scored[(query_text, cid)] = score
     for st in res.trace:
         trace.append({
             "step": st.step, "input": query_text,
@@ -165,16 +187,34 @@ def _run_agent(
     analysis = _analyse(counter, query, trace)
     subquestions = analysis.subquestions or [query]
 
+    scored: dict[tuple[str, int], float] = {}  # (query text, chunk) -> CE score
+    best_by_sub: list[float] = []
+
     # 2 + 3. write query + search for each sub-question
     for subq in subquestions:
         if _now() > deadline:
             break
-        search_q = _write_query(counter, subq, trace)
-        merge(_search(search_q, domain, trace))
+        is_sub = bool(analysis.subquestions)
+        search_q = _write_query(counter, subq, trace, _skip_rewrite(analysis, is_sub))
+        found = _search(search_q, domain, trace, scored)
+        best_by_sub.append(max((s for _, s in found), default=float("-inf")))
+        merge(found)
 
     # 4 + 5. sufficiency loop
     rounds = 1
-    while rounds < settings.agent_max_rounds and counter.remaining > 2 and _now() <= deadline:
+    max_rounds = settings.agent_max_rounds
+    if settings.agent_adaptive_sufficiency and analysis.qtype == "simple":
+        max_rounds = min(max_rounds, 1 + settings.agent_max_extra_rounds_simple)
+    while rounds < max_rounds and counter.remaining > 2 and _now() <= deadline:
+        if settings.agent_adaptive_sufficiency and best_by_sub and \
+                min(best_by_sub) >= settings.agent_coverage_min_score:
+            trace.append({
+                "step": "sufficiency_skipped", "input": query,
+                "output": {"reason": "coverage", "min_top_score": round(min(best_by_sub), 4),
+                           "threshold": settings.agent_coverage_min_score},
+                "duration_ms": 0,
+            })
+            break
         t0 = _now()
         with llm_role("sufficiency"):
             suff = call_json(
@@ -193,14 +233,24 @@ def _run_agent(
         })
         if suff.sufficient or not suff.next_query:
             break
-        merge(_search(suff.next_query, domain, trace))
+        found = _search(suff.next_query, domain, trace, scored)
+        best_by_sub = [max((s for _, s in found), default=float("-inf"))]
+        merge(found)
         rounds += 1
 
     # final rerank of the union against the original query -> diversity -> final_k
     t0 = _now()
     cand_ids = list(candidates.keys())
-    texts = pipeline._chunk_texts(cand_ids)
-    reranked = reranker.rerank(query, [(c, texts.get(c, "")) for c in cand_ids])
+    union_size = len(cand_ids)
+    if settings.agent_final_rerank_pool and len(cand_ids) > settings.agent_final_rerank_pool:
+        cand_ids = [c for c, _ in sorted(candidates.items(), key=lambda x: x[1],
+                                         reverse=True)[: settings.agent_final_rerank_pool]]
+    reuse = {c: scored[(query, c)] for c in cand_ids
+             if settings.agent_reuse_rerank_scores and (query, c) in scored}
+    todo = [c for c in cand_ids if c not in reuse]
+    texts = pipeline._chunk_texts(todo)
+    fresh = reranker.rerank(query, [(c, texts.get(c, "")) for c in todo]) if todo else []
+    reranked = sorted(fresh + list(reuse.items()), key=lambda x: x[1], reverse=True)
     ranked_ids = [c for c, _ in reranked[:30]]  # pre-diversity, for eval
     final = pipeline.apply_diversity(reranked, settings.max_chunks_per_doc, final_k)
     trace.append({
@@ -235,6 +285,7 @@ def _run_agent(
         "llm_calls": counter.n,
         "ranked_chunk_ids": ranked_ids,
         "timings": {"total": int((_now() - start) * 1000)},
-        "agent_counts": {"union": len(cand_ids), "searches": sum(
-            1 for s in trace if s["step"] == "search")},
+        "agent_counts": {"union": union_size, "final_rerank_scored": len(todo),
+                         "final_rerank_reused": len(reuse), "searches": sum(
+                             1 for s in trace if s["step"] == "search")},
     }

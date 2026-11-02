@@ -233,3 +233,19 @@ silently) are logged as warnings and counted. A failed query rewrite is now
 logged instead of being swallowed silently (the search still falls back to the
 original query).
 
+## ADR-0021: Adaptive agent switches
+The agent loop gained independent, configuration-driven switches, all off by
+default so the original loop stays reproducible:
+`AGENT_REWRITE_POLICY` (always | skip_simple | skip_subquestions | never),
+`AGENT_ADAPTIVE_SUFFICIENCY` with `AGENT_COVERAGE_MIN_SCORE` (skip the LLM
+sufficiency check when every sub-question already has a passage at or above
+the cross-encoder score threshold; at most `AGENT_MAX_EXTRA_ROUNDS_SIMPLE`
+extra rounds for simple questions), `AGENT_FINAL_RERANK_POOL` (cap the final
+rerank to the top-N union candidates) and `AGENT_REUSE_RERANK_SCORES` (never
+re-score a (query, passage) pair already scored in the same request — exact,
+since the cross-encoder is deterministic). Skipped steps are recorded in the
+trace (`rewrite_skipped`, `sufficiency_skipped`). Budgets (max calls with one
+reserved for the answer, max rounds, timeout) are unchanged. LLM calls are not
+parallelised: on a CPU-only machine concurrent requests to one local model
+compete for the same cores and memory bandwidth. Which switches are enabled by
+default is decided by measurement (see the optimization report).
