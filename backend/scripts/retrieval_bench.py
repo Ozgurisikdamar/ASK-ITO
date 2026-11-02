@@ -29,7 +29,9 @@ def parse() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
     ap.add_argument("--label", required=True)
     ap.add_argument("--mode", default="hybrid_rerank",
-                    choices=["bm25", "vector", "hybrid", "hybrid_rerank"])
+                    choices=["bm25", "vector", "hybrid", "hybrid_rerank", "search", "overview"])
+    ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                    help="any Settings env var, e.g. FAST_RERANK=false, FAST_TOP_K=20")
     ap.add_argument("--reranker")
     ap.add_argument("--pool", type=int)
     ap.add_argument("--max-length", type=int)
@@ -50,6 +52,11 @@ def main() -> None:
             os.environ[env] = str(val)
     os.environ.setdefault("LLM_MODE", "mock")
     os.environ["WARMUP_ON_START"] = "false"
+    overrides = {}
+    for kv in args.set:
+        key, _, val = kv.partition("=")
+        os.environ[key.strip().upper()] = val
+        overrides[key.strip().upper()] = val
 
     import psycopg
 
@@ -72,6 +79,8 @@ def main() -> None:
         "rerank_batch_size": settings.rerank_batch_size, "hnsw_ef_search": settings.hnsw_ef_search,
         "torch_threads": settings.torch_threads, "final_k": settings.final_k,
         "embedding_model": settings.embedding_model,
+        "uses_reranker": pipeline.uses_reranker(args.mode),
+        "channel_k": pipeline.channel_k(args.mode), "overrides": overrides,
     }
     planned = len(questions) + (args.reps - 1) * len(rep_questions)
     ck.header(benchmark="retrieval", label=args.label, config=config,
@@ -87,7 +96,7 @@ def main() -> None:
     t = time.perf_counter()
     embed.warmup()
     loads["embedder_s"] = round(time.perf_counter() - t, 2)
-    if args.mode == "hybrid_rerank":
+    if pipeline.uses_reranker(args.mode):
         from app.retrieval import reranker
 
         t = time.perf_counter()
