@@ -112,8 +112,9 @@ After changing `.env` run `./askito model` (if the model is new) and
 `./askito restart`.
 
 *Windows / Docker Desktop memory:* WSL 2 gives Docker about half of the host
-RAM by default. qwen3.5:9b needs ~9 GB while loaded (measured); if you use a
-larger model, raise the limit in
+RAM by default. With qwen3.5:9b loaded the Ollama processes used 9–11 GB RSS
+in our runs (measured); if that does not fit, or you use a larger model, raise
+the limit in
 `%UserProfile%\.wslconfig`, then run `wsl --shutdown` and restart Docker Desktop:
 
 ```ini
@@ -206,9 +207,11 @@ for the full tables:
 - Retrieval without reranker (embedding + BM25 + pgvector + RRF): ~0.1 s p50.
 - bge-reranker-base over 20 candidates: ~7.7 s p50 at 512 tokens (default),
   ~4 s at 256 tokens; MiniLM ~0.8 s; `FAST_RERANK=false` skips it.
-- qwen3.5:9b (Q4_K_M) on this CPU: prefill ~19 tok/s, generation ~3 tok/s, so a
-  full answer takes about a minute; a faster CPU or a GPU shortens this roughly
-  in proportion. A repeated query is served from the answer cache.
+- qwen3.5:9b (Q4_K_M) on this CPU: prefill ~19–26 tok/s, generation ~3.2 tok/s;
+  a Fast Answer took 64 s median end to end (first token after ~19–29 s) on 12
+  eval questions, versus 92 s for the previous default path with the same model.
+  A faster CPU or a GPU shortens the LLM part roughly in proportion. A repeated
+  query is served from the answer cache.
 
 ## Tests
 
