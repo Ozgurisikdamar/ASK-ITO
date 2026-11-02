@@ -36,7 +36,8 @@ from app.config import settings
 from app.eval import metrics, ragas_eval, report
 from app.retrieval import pipeline
 
-ALL_MODES = pipeline.RETRIEVAL_MODES + ["agentic"]
+# "search" produces no answer, so it is not an evaluation configuration
+ALL_MODES = [m for m in pipeline.RETRIEVAL_MODES if m != "search"] + ["agentic"]
 
 
 def _git_commit() -> str:

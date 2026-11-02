@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     llm_mode: str = "ollama"
     llm_base_url: str = "http://localhost:11434"
     llm_api_key: str = "ollama"
-    llm_default_model: str = ""
+    llm_default_model: str = "qwen3.5:9b"  # answer generator for the fast path
     llm_agent_model: str = ""
     llm_answer_model: str = ""
     llm_judge_model: str = ""
@@ -113,8 +113,15 @@ class Settings(BaseSettings):
     agent_reuse_rerank_scores: bool = False
     final_k: int = 5
 
-    # Answer generation
-    default_mode: str = "overview"  # Google-like: instant results + streamed AI overview
+    # Fast path (default): "overview" = Fast Answer (hybrid retrieval + optional
+    # rerank + exactly one LLM call), "search" = the same retrieval, no LLM call.
+    default_mode: str = "overview"
+    fast_rerank: bool = True  # cross-encoder stage in the fast modes
+    fast_top_k: int = 0  # candidates per channel in the fast modes (0 = BM25/VECTOR_TOP_K)
+    # Minimum cross-encoder score for a passage to be used as evidence in the fast
+    # modes (reranker on only; 0 = off). No passage above it -> "not found" answer
+    # without calling the LLM.
+    fast_min_evidence_score: float = 0.0
     overview_context_chunks: int = 4
     overview_context_chars: int = 700
     overview_max_tokens: int = 320

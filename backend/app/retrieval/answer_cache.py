@@ -14,9 +14,15 @@ def _model_tag() -> str:
 
 
 def make_key(query: str, mode: str, domain: str | None) -> str:
+    from app.retrieval import pipeline
+
     parts = [
         " ".join(query.lower().split()), mode, domain or "all", _model_tag(),
         settings.prompt_version, index_version(),
+        # retrieval settings that change the context given to the model
+        str(pipeline.uses_reranker(mode)), settings.reranker_model,
+        str(pipeline.channel_k(mode)), str(settings.fast_min_evidence_score),
+        str(settings.overview_context_chunks), str(settings.overview_context_chars),
     ]
     return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
 

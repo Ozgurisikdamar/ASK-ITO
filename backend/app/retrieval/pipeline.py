@@ -15,15 +15,32 @@ from dataclasses import asdict, dataclass, field
 
 from app.config import settings
 from app.index.bm25_index import index_version
+from app.index.embed import embed_query
 from app.retrieval.search import bm25_search, rrf_fuse, vector_search
 from app.retrieval.store import store
 
-# "overview" retrieves exactly like hybrid_rerank; only answer generation differs.
+# Fast path (default): "overview" = hybrid retrieval + optional rerank + one LLM
+# answer call; "search" = the same retrieval with no LLM call at all.
 RETRIEVAL_MODES = [
     "closed_book", "bm25", "vector", "hybrid", "hybrid_rerank", "hybrid_rerank_rewrite",
-    "overview",
+    "overview", "search",
 ]
-RERANK_MODES = {"hybrid_rerank", "hybrid_rerank_rewrite", "overview"}
+FAST_MODES = {"overview", "search"}
+RERANK_MODES = {"hybrid_rerank", "hybrid_rerank_rewrite"}  # always rerank
+
+
+def uses_reranker(mode: str) -> bool:
+    """Cross-encoder stage on/off. Fixed for the evaluation modes; for the fast
+    modes it is FAST_RERANK (so it can be switched off when the CPU is slow)."""
+    return mode in RERANK_MODES or (mode in FAST_MODES and settings.fast_rerank)
+
+
+def channel_k(mode: str) -> tuple[int, int]:
+    """Candidates per channel (BM25, pgvector). FAST_TOP_K overrides both for the
+    fast modes when > 0."""
+    if mode in FAST_MODES and settings.fast_top_k > 0:
+        return settings.fast_top_k, settings.fast_top_k
+    return settings.bm25_top_k, settings.vector_top_k
 
 
 @dataclass
@@ -96,25 +113,34 @@ def candidates(query: str, mode: str, domain: str | None = None) -> Candidates:
     if mode == "closed_book":
         return Candidates([], trace, timings, eff_query, rewritten)
 
+    k_bm25, k_vec = channel_k(mode)
     if mode == "bm25":
         with _Timer() as t:
-            fused = bm25_search(eff_query, settings.bm25_top_k, domain=domain)
+            fused = bm25_search(eff_query, k_bm25, domain=domain)
         trace.append(_step("bm25", t.ms, fused))
         timings["bm25"] = t.ms
     elif mode == "vector":
         with _Timer() as t:
-            fused = vector_search(eff_query, settings.vector_top_k, domain=domain)
+            emb = embed_query(eff_query)
+        timings["embedding"] = t.ms
+        with _Timer() as t:
+            fused = vector_search(eff_query, k_vec, domain=domain, embedding=emb)
         trace.append(_step("vector", t.ms, fused))
         timings["vector"] = t.ms
     else:  # hybrid family
+        # BM25 (~1 ms, in memory) and the query embedding run back to back:
+        # parallelising them would save at most the BM25 time.
         with _Timer() as t:
-            bm = bm25_search(eff_query, settings.bm25_top_k, domain=domain)
+            bm = bm25_search(eff_query, k_bm25, domain=domain)
         trace.append(_step("bm25", t.ms, bm))
         timings["bm25"] = t.ms
         with _Timer() as t:
-            vec = vector_search(eff_query, settings.vector_top_k, domain=domain)
+            emb = embed_query(eff_query)  # computed once per query
+        timings["embedding"] = t.ms
+        with _Timer() as t:
+            vec = vector_search(eff_query, k_vec, domain=domain, embedding=emb)
         trace.append(_step("vector", t.ms, vec))
-        timings["vector"] = t.ms
+        timings["vector"] = t.ms  # pgvector query only
         with _Timer() as t:
             fused = rrf_fuse([bm, vec])
         trace.append(_step("rrf", t.ms, fused[: settings.results_max]))
@@ -167,7 +193,8 @@ _cache_lock = threading.Lock()
 
 
 def _cache_key(query: str, mode: str, domain: str | None, final_k: int) -> tuple:
-    return (" ".join(query.lower().split()), mode, domain or "all", final_k, index_version())
+    return (" ".join(query.lower().split()), mode, domain or "all", final_k, index_version(),
+            uses_reranker(mode), settings.reranker_model, channel_k(mode))
 
 
 def cache_clear() -> None:
@@ -214,7 +241,7 @@ def run_retrieval(
     if mode == "closed_book":
         return PipelineResult(mode, [], trace, None, timings)
 
-    if mode in RERANK_MODES:
+    if uses_reranker(mode):
         ranked, step = rerank_stage(cand.eff_query, cand.fused, final_k)
         trace.append(step)
         timings["rerank"] = step.duration_ms
@@ -224,7 +251,7 @@ def run_retrieval(
     final = apply_diversity(ranked, settings.max_chunks_per_doc, final_k)
     counts = {"fused": len(cand.fused), "final": len(final),
               "reranked": min(len(cand.fused), settings.rerank_pool)
-              if mode in RERANK_MODES else 0}
+              if uses_reranker(mode) else 0}
     result = PipelineResult(
         mode, final, trace, cand.rewritten, timings, ranked=ranked[:ranked_keep()],
         counts=counts,

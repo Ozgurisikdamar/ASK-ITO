@@ -27,9 +27,11 @@ def bm25_search(
 
 
 def vector_search(
-    query: str, k: int | None = None, domain: str | None = None
+    query: str, k: int | None = None, domain: str | None = None,
+    embedding: list[float] | None = None,
 ) -> list[tuple[int, float]]:
-    emb = embed_query(query)
+    """pgvector search; pass a precomputed `embedding` to avoid embedding twice."""
+    emb = embedding if embedding is not None else embed_query(query)
     return _vector_store.search(emb, k or settings.vector_top_k, domain=domain)
 
 
