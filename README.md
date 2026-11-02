@@ -55,7 +55,7 @@ original target for feasibility; see ADR-0007.
 - **DB**: PostgreSQL 16 + pgvector (HNSW, `vector_cosine_ops`)
 - **BM25**: `bm25s` (English stopwords + stemming)
 - **Embedding**: `BAAI/bge-base-en-v1.5` (768-dim, config-driven)
-- **Reranker**: `BAAI/bge-reranker-base` (default, top 20 candidates, 256 tokens) or
+- **Reranker**: `BAAI/bge-reranker-base` (default, top 20 candidates, 512 tokens) or
   `cross-encoder/ms-marco-MiniLM-L-6-v2`; switchable off in the fast modes (`FAST_RERANK`)
 - **LLM**: `qwen3.5:9b` on local Ollama (native API, streaming, thinking off);
   a locally served OpenAI-compatible endpoint optionally; `mock` mode for tests.
@@ -204,8 +204,8 @@ Embedding, reranking and the LLM run on CPU. Measured on a 4-vCPU Intel Xeon
 for the full tables:
 
 - Retrieval without reranker (embedding + BM25 + pgvector + RRF): ~0.1 s p50.
-- bge-reranker-base over 20 candidates (256 tokens): ~4 s p50; MiniLM ~0.8 s;
-  `FAST_RERANK=false` skips it.
+- bge-reranker-base over 20 candidates: ~7.7 s p50 at 512 tokens (default),
+  ~4 s at 256 tokens; MiniLM ~0.8 s; `FAST_RERANK=false` skips it.
 - qwen3.5:9b (Q4_K_M) on this CPU: prefill ~19 tok/s, generation ~3 tok/s, so a
   full answer takes about a minute; a faster CPU or a GPU shortens this roughly
   in proportion. A repeated query is served from the answer cache.

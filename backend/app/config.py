@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Reranker (cross-encoder). Default chosen by the fast-RAG comparison
     # (docs/DECISIONS.md ADR-0022): bge-reranker-base with RERANK_POOL=20 and
-    # RERANK_MAX_LENGTH=256. cross-encoder/ms-marco-MiniLM-L-6-v2 is faster but
+    # RERANK_MAX_LENGTH=512. cross-encoder/ms-marco-MiniLM-L-6-v2 is faster but
     # gained little over no reranker on the eval set.
     reranker_model: str = "BAAI/bge-reranker-base"
 
@@ -87,7 +87,7 @@ class Settings(BaseSettings):
     hnsw_ef_search: int = 100  # pgvector HNSW candidate list (default 40 caps top-k)
     rrf_k: int = 60
     rerank_pool: int = 20
-    rerank_max_length: int = 256  # tokens per (query, passage) pair
+    rerank_max_length: int = 512  # tokens per (query, passage) pair (bge-reranker-base maximum)
     rerank_batch_size: int = 32
     torch_threads: int = 0  # 0 = all CPU cores
     max_chunks_per_doc: int = 2

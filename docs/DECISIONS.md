@@ -263,18 +263,21 @@ benchmarks are offline developer tools; the serving path does not import them
 (tested).
 
 Reranker: on the 46-question eval set, bge-reranker-base over 20 candidates at
-256 tokens per pair lifted doc Recall@5 from 0.716 to 0.773, chunk Recall@5
-from 0.318 to 0.432 and MRR@10 from 0.654 to 0.701 compared with no reranker, at
-~4 s per query on a 4-core CPU; MiniLM-L-6 (~0.8 s) gained little (0.739 /
-0.318 / 0.658). bge-reranker-base is therefore the default again (superseding
-the M10 choice in ADR-0017), and `FAST_RERANK=false` switches the stage off for
-slow machines.
+512 tokens per pair lifted doc Recall@5 from 0.716 to 0.784, chunk Recall@5
+from 0.318 to 0.432 and MRR@10 from 0.654 to 0.727 compared with no reranker, at
+~7.7 s per query on a 4-core CPU; the previous default (30 candidates) reached
+0.807 / 0.455 / 0.742 at ~13.9 s. At 256 tokens (~4 s) MRR@10 fell to 0.701 and,
+end to end on 12 questions, Recall@5 / MRR@10 were 9 / 16 points below the
+previous default, so 512 tokens is kept. MiniLM-L-6 (~0.8 s) gained little
+(0.739 / 0.318 / 0.658). bge-reranker-base with 20 candidates and 512 tokens is
+therefore the default (superseding the M10 choice in ADR-0017), and
+`FAST_RERANK=false` switches the stage off for slow machines.
 
 Evidence cut-off: passages whose cross-encoder score is below
 `FAST_MIN_EVIDENCE_SCORE` are not used as evidence; if none remain, the answer
 is the fixed "not found" sentence and the LLM is not called. 0.3 (bge
 probability units) keeps every answerable eval question (lowest top score
-0.70) and stops the off-topic probes; questions that share vocabulary with the
+0.70 at both 256 and 512 tokens) and stops the off-topic probes; questions that share vocabulary with the
 corpus (e.g. other Nobel categories) pass the cut-off and rely on the prompt's
 not-found instruction. The value is model-specific (MiniLM outputs logits).
 
