@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Logo } from "../components/Logo";
 import { SearchBar } from "../components/SearchBar";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { CorpusScope } from "../components/CorpusScope";
 import { getFeatured, getHealth, HealthResponse } from "../api/client";
 import { strings } from "../strings";
 
@@ -58,6 +59,7 @@ export function Home() {
       <main className="relative mx-auto flex max-w-2xl flex-col items-center px-4 pt-16 sm:pt-24">
         <Logo variant="large" />
         <p className="mt-4 text-center text-content-muted">{strings.tagline}</p>
+        <CorpusScope className="mt-1 text-center" />
 
         <div className="mt-8 w-full">
           <SearchBar

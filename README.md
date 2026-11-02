@@ -49,11 +49,18 @@ evaluation run.
 
 ## Corpus
 
-A frozen snapshot of **258 English Wikipedia documents** (→ **5,988 chunks**)
-across three domains: `nobel` (last five years 2022–2026 plus landmark prizes),
-`quantum` (quantum computing), and `ai` (computer vision, Transformers & LLMs,
-RAG, autonomous agents, deep learning). The scope was refined from the spec's
-original target for feasibility; see ADR-0007.
+**Ask ITO searches a small, fixed corpus — it is not a general Wikipedia search
+engine.** The snapshot holds **258 English Wikipedia documents** (→ **5,988
+chunks**) in three domains: `nobel` (Physics, Chemistry and Physiology/Medicine
+prizes of the last five years 2022–2026 plus landmark prizes), `quantum`
+(quantum computing) and `ai` (computer vision, Transformers & LLMs, RAG,
+autonomous agents, deep learning). Other Nobel categories (Literature, Peace,
+Economics) and topics outside these domains are not covered; such questions
+get a "not found" answer. Broad questions ("popular AI fields") are answered
+from what the retrieved passages contain, not as a complete or ranked list.
+The UI shows the article count and snapshot date. The scope was refined from
+the spec's original target for feasibility; see ADR-0007. Growing it means
+running the ingest pipeline with more seeds (`./askito ingest`, then `index`).
 
 ## Stack
 

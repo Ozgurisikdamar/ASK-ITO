@@ -9,6 +9,7 @@ import { SourceCard } from "../components/SourceCard";
 import { TracePanel } from "../components/TracePanel";
 import { LatencyBreakdown } from "../components/LatencyBreakdown";
 import { AnswerPrompt } from "../components/AnswerPrompt";
+import { CorpusScope } from "../components/CorpusScope";
 import { getAutoAnswer, setAutoAnswer } from "../prefs";
 import { openSearchStream } from "../api/client";
 import { initialState, reducer } from "../search/state";
@@ -140,9 +141,12 @@ export function Results() {
         )}
 
         {state.results.length > 0 && (
-          <p className="text-sm text-content-muted">
-            {strings.results.stats(state.results.length, resultsMs)}
-          </p>
+          <div>
+            <p className="text-sm text-content-muted">
+              {strings.results.stats(state.results.length, resultsMs)}
+            </p>
+            <CorpusScope />
+          </div>
         )}
 
         {mode === "search" ? (

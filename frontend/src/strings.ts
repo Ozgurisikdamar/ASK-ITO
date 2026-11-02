@@ -1,7 +1,10 @@
 // All user-facing UI text in one place (corpus is English, so UI is English).
 export const strings = {
   appName: "Ask ITO",
-  tagline: "Search recent Nobel Prizes and quantum computing.",
+  tagline: "Search a focused Wikipedia snapshot on recent Nobel Prizes, quantum computing and AI.",
+  scope: (n: number | null, date: string | null) =>
+    `Searches a fixed snapshot of ${n ? n.toLocaleString() : "a few hundred"} English Wikipedia articles` +
+    ` (Nobel Prizes, quantum computing, AI)${date ? ` from ${date}` : ""} — not all of Wikipedia.`,
   searchPlaceholder: "Ask anything about recent Nobel Prizes or quantum computing…",
   searchAria: "Search query",
   submit: "Search",
