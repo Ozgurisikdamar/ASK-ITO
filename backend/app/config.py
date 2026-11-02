@@ -25,10 +25,11 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768
 
-    # Reranker (mandatory component). CPU default chosen by the M10 benchmark gate
-    # (docs/DECISIONS.md ADR-0017); BAAI/bge-reranker-base is higher quality but
-    # ~6x slower on CPU.
-    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    # Reranker (cross-encoder). Default chosen by the fast-RAG comparison
+    # (docs/DECISIONS.md ADR-0022): bge-reranker-base with RERANK_POOL=20 and
+    # RERANK_MAX_LENGTH=256. cross-encoder/ms-marco-MiniLM-L-6-v2 is faster but
+    # gained little over no reranker on the eval set.
+    reranker_model: str = "BAAI/bge-reranker-base"
 
     # LLM abstraction
     # "ollama": local Ollama native API (/api/chat; a trailing /v1 in the URL is ignored)
@@ -120,8 +121,9 @@ class Settings(BaseSettings):
     fast_top_k: int = 0  # candidates per channel in the fast modes (0 = BM25/VECTOR_TOP_K)
     # Minimum cross-encoder score for a passage to be used as evidence in the fast
     # modes (reranker on only; 0 = off). No passage above it -> "not found" answer
-    # without calling the LLM.
-    fast_min_evidence_score: float = 0.0
+    # without calling the LLM. In the reranker's own score units: 0.3 is calibrated
+    # for bge-reranker-base (probabilities); MiniLM outputs logits -> re-calibrate.
+    fast_min_evidence_score: float = 0.3
     overview_context_chunks: int = 4
     overview_context_chars: int = 700
     overview_max_tokens: int = 320
