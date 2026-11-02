@@ -7,6 +7,7 @@ import { AnswerCard } from "../components/AnswerCard";
 import { OrganicResult } from "../components/OrganicResult";
 import { SourceCard } from "../components/SourceCard";
 import { TracePanel } from "../components/TracePanel";
+import { LatencyBreakdown } from "../components/LatencyBreakdown";
 import { openSearchStream } from "../api/client";
 import { initialState, reducer } from "../search/state";
 import { strings } from "../strings";
@@ -88,7 +89,8 @@ export function Results() {
         </div>
         <nav className="mt-2 flex gap-4 text-sm" aria-label="Search mode">
           {[
-            { id: "overview", label: strings.modes.search },
+            { id: "overview", label: strings.modes.answer },
+            { id: "search", label: strings.modes.sources },
             { id: "agentic", label: strings.modes.aiMode },
           ].map((t) => (
             <button
@@ -122,7 +124,11 @@ export function Results() {
           </p>
         )}
 
-        {mode !== "closed_book" || shownAnswer ? (
+        {mode === "search" ? (
+          <p className="rounded-2xl border border-mauve-200 bg-surface-raised p-4 text-sm text-content-muted">
+            {strings.results.sourcesOnly}
+          </p>
+        ) : mode !== "closed_book" || shownAnswer ? (
           <AnswerCard
             answer={shownAnswer}
             mode={mode}
@@ -135,8 +141,16 @@ export function Results() {
           />
         ) : null}
 
+        {state.phase === "done" && state.abstained && (
+          <p className="text-sm text-content-muted">{strings.results.abstained}</p>
+        )}
+
+        {state.phase === "done" && (
+          <LatencyBreakdown timings={state.timings} model={state.model} reranker={state.reranker} />
+        )}
+
         {state.sources.length > 0 && (
-          <details className="rounded-2xl border border-mauve-200 bg-surface-raised p-4">
+          <details className="rounded-2xl border border-mauve-200 bg-surface-raised p-4" open={mode === "search"}>
             <summary className="cursor-pointer text-sm font-medium text-content">
               {strings.results.sourcesUsed} ({state.sources.length})
             </summary>

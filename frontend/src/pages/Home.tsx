@@ -8,6 +8,7 @@ import { strings } from "../strings";
 
 const ALL_MODES = [
   "overview",
+  "search",
   "closed_book",
   "bm25",
   "vector",
@@ -70,9 +71,14 @@ export function Home() {
         {/* mode selector */}
         <div className="mt-4 flex items-center gap-2 text-sm">
           <ModeButton
-            label={strings.modes.search}
+            label={strings.modes.answer}
             active={mode === "overview"}
             onClick={() => setMode("overview")}
+          />
+          <ModeButton
+            label={strings.modes.sources}
+            active={mode === "search"}
+            onClick={() => setMode("search")}
           />
           <ModeButton
             label={strings.modes.aiMode}

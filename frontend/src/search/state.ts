@@ -14,6 +14,8 @@ export interface SearchState {
   timings: Record<string, number>;
   cached: boolean;
   model: string | null;
+  reranker: string | null;
+  abstained: boolean;
   error: string | null;
 }
 
@@ -29,6 +31,8 @@ export const initialState: SearchState = {
   timings: {},
   cached: false,
   model: null,
+  reranker: null,
+  abstained: false,
   error: null,
 };
 
@@ -76,6 +80,8 @@ export function reducer(state: SearchState, action: Action): SearchState {
         timings: { ...state.timings, ...action.data.timings },
         cached: action.data.cached,
         model: action.data.model ?? null,
+        reranker: action.data.reranker ?? null,
+        abstained: !!action.data.abstained,
       };
     case "error":
       return { ...state, phase: "error", error: action.detail };

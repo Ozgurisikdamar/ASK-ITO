@@ -64,12 +64,14 @@ export interface ResultsEvent {
 }
 
 export interface DoneEvent {
-  answer: string;
+  answer: string | null; // null in Sources (search-only) mode: no LLM call
   citations: Citation[];
   timings: Record<string, number>;
   cached: boolean;
   mode: string;
-  model?: string;
+  model?: string | null;
+  reranker?: string | null;
+  abstained?: boolean; // no passage passed the evidence cut-off: answered without the LLM
   rounds?: number;
   llm_calls?: number;
 }

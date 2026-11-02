@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { strings } from "../strings";
 import { Link } from "react-router-dom";
 import {
   Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -73,6 +74,7 @@ export function EvalPanel() {
 
         <section className="rounded-2xl border border-mauve-200 bg-surface-raised p-4">
           <h2 className="mb-2 font-semibold text-content">Run evaluation</h2>
+          <p className="mb-3 text-xs text-content-muted">{strings.ragasOffline}</p>
           <div className="mb-3 flex flex-wrap gap-2">
             {ALL_CONFIGS.map((c) => (
               <label key={c} className="flex items-center gap-1 rounded-full border border-mauve-200 px-3 py-1 text-sm text-content-muted">
