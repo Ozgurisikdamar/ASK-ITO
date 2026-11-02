@@ -26,6 +26,7 @@ from fastapi.responses import StreamingResponse
 
 from app.agent.answer import stream_answer
 from app.config import settings
+from app.llm.metrics import log_request, recording
 from app.retrieval import answer_cache, pipeline, service
 from app.warmup import activity
 
@@ -42,7 +43,24 @@ def _ms(t0: float) -> int:
 
 
 def produce(q: str, mode: str, domain: str, cancel: threading.Event):
-    """Yield (event, data) pairs for one search."""
+    """Yield (event, data) pairs for one search; `done` carries `metrics`."""
+    with recording() as rec:
+        for event, data in _produce(q, mode, domain, cancel):
+            if event == "done":
+                timings = data.get("timings", {})
+                metrics = {
+                    "mode": mode, "total_ms": timings.get("total"),
+                    "first_token_ms": timings.get("first_token"),
+                    "retrieval_ms": {s: timings[s] for s in ("bm25", "vector", "rrf", "rerank")
+                                     if s in timings},
+                    "llm": rec.summary(), "answer_cached": bool(data.get("cached")),
+                }
+                data = {**data, "metrics": metrics}
+                log_request(f"stream:{mode}", metrics)
+            yield event, data
+
+
+def _produce(q: str, mode: str, domain: str, cancel: threading.Event):
     t0 = time.perf_counter()
     timings: dict[str, int] = {}
 

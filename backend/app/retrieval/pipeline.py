@@ -50,6 +50,7 @@ class PipelineResult:
     timings: dict[str, int]
     ranked: list[tuple[int, float]] = field(default_factory=list)  # pre-diversity
     cached: bool = False
+    counts: dict = field(default_factory=dict)  # candidates per stage (metrics only)
 
     def trace_dicts(self) -> list[dict]:
         return [asdict(s) for s in self.trace]
@@ -221,8 +222,12 @@ def run_retrieval(
         ranked = cand.fused
 
     final = apply_diversity(ranked, settings.max_chunks_per_doc, final_k)
+    counts = {"fused": len(cand.fused), "final": len(final),
+              "reranked": min(len(cand.fused), settings.rerank_pool)
+              if mode in RERANK_MODES else 0}
     result = PipelineResult(
-        mode, final, trace, cand.rewritten, timings, ranked=ranked[:ranked_keep()]
+        mode, final, trace, cand.rewritten, timings, ranked=ranked[:ranked_keep()],
+        counts=counts,
     )
     if use_cache:
         cache_put(query, mode, domain, final_k, result)

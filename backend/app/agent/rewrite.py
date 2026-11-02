@@ -2,25 +2,32 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 
 from app.agent.prompts import load
 from app.llm.client import LLMClient, get_llm_client
 
+log = logging.getLogger("askito.rewrite")
+
 
 def rewrite_query(query: str, llm: LLMClient | None = None) -> str:
-    llm = llm or get_llm_client()
+    from app.config import settings
+    from app.llm.metrics import instrumented, llm_role
+
+    llm = instrumented(llm or get_llm_client())
     prompt = load("rewrite").replace("{question}", query)
     try:
-        from app.config import settings
-
-        raw = llm.chat(
-            [{"role": "user", "content": prompt}], temperature=0.0,
-            model=settings.model_for("agent"), json_mode=True, max_tokens=120,
-        )
+        with llm_role("rewrite"):
+            raw = llm.chat(
+                [{"role": "user", "content": prompt}], temperature=0.0,
+                model=settings.model_for("agent"), json_mode=True, max_tokens=120,
+            )
         rewritten = _parse(raw)
         return rewritten or query
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001  (rewriting is optional: search the original)
+        log.warning("query rewrite failed (%s: %s); searching the original query",
+                    exc.__class__.__name__, str(exc)[:200])
         return query
 
 

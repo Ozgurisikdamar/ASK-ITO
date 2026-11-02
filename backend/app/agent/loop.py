@@ -16,12 +16,15 @@ from app.agent.prompts import load
 from app.agent.schemas import Analysis, Sufficiency, call_json
 from app.config import settings
 from app.llm.client import LLMClient, get_llm_client
+from app.llm.metrics import current_recorder, instrumented, llm_role, log_request, recording
 from app.retrieval import hydrate, pipeline, reranker
 
 
 class _CountingLLM:
+    askito_instrumented = True  # delegates to an instrumented client
+
     def __init__(self, llm: LLMClient, max_calls: int) -> None:
-        self._llm = llm
+        self._llm = instrumented(llm)
         self.n = 0
         self.max = max_calls
 
@@ -49,7 +52,8 @@ def _analyse(llm: _CountingLLM, query: str, trace: list[dict]) -> Analysis:
     t0 = _now()
     analysis = None
     if llm.remaining >= 2:
-        analysis = call_json(llm, load("analyze").replace("{question}", query), Analysis)
+        with llm_role("analyze"):
+            analysis = call_json(llm, load("analyze").replace("{question}", query), Analysis)
     analysis = analysis or Analysis(qtype="simple", subquestions=[])
     subs = [s for s in analysis.subquestions if s.strip()][: settings.agent_max_subquestions]
     analysis.subquestions = subs
@@ -109,6 +113,42 @@ def run_agent(
     query: str, domain: str | None = "all", final_k: int | None = None,
     llm: LLMClient | None = None,
 ) -> dict:
+    """Run the agent; adds a `metrics` object (timings, LLM calls by role,
+    rounds, candidate counts) without changing the answer."""
+    outer = current_recorder()
+    if outer is not None:
+        res = _run_agent(query, domain, final_k, llm)
+        res["metrics"] = _agent_metrics(res, outer)
+        return res
+    with recording() as rec:
+        res = _run_agent(query, domain, final_k, llm)
+    res["metrics"] = _agent_metrics(res, rec)
+    log_request("agentic", res["metrics"])
+    return res
+
+
+def _agent_metrics(res: dict, rec) -> dict:
+    steps: dict[str, int] = {}
+    for st in res["trace"]:
+        if st["step"] in ("bm25", "vector", "rrf", "rerank", "search", "final_rerank"):
+            steps[st["step"]] = steps.get(st["step"], 0) + (st.get("duration_ms") or 0)
+    analysis = next((s["output"] for s in res["trace"] if s["step"] == "analyze"), {})
+    return {
+        "mode": "agentic",
+        "total_ms": res["timings"]["total"],
+        "retrieval_ms": steps,
+        "llm": rec.summary(),
+        "agent": {"rounds": res["rounds"], "llm_calls": res["llm_calls"],
+                  "subquestions": len(analysis.get("subquestions") or []),
+                  "qtype": analysis.get("qtype"), **res.get("agent_counts", {})},
+        "candidates": {"final_rerank_pool": res.get("agent_counts", {}).get("union"),
+                       "context_chunks": len(res["sources"])},
+    }
+
+
+def _run_agent(
+    query: str, domain: str | None, final_k: int | None, llm: LLMClient | None,
+) -> dict:
     final_k = final_k or settings.final_k
     start = _now()
     deadline = start + settings.agent_timeout_s
@@ -136,12 +176,13 @@ def run_agent(
     rounds = 1
     while rounds < settings.agent_max_rounds and counter.remaining > 2 and _now() <= deadline:
         t0 = _now()
-        suff = call_json(
-            counter,
-            load("sufficiency").replace("{question}", query)
-            .replace("{context}", _context_for_sufficiency(candidates)),
-            Sufficiency,
-        )
+        with llm_role("sufficiency"):
+            suff = call_json(
+                counter,
+                load("sufficiency").replace("{question}", query)
+                .replace("{context}", _context_for_sufficiency(candidates)),
+                Sufficiency,
+            )
         if suff is None:
             break
         trace.append({
@@ -194,4 +235,6 @@ def run_agent(
         "llm_calls": counter.n,
         "ranked_chunk_ids": ranked_ids,
         "timings": {"total": int((_now() - start) * 1000)},
+        "agent_counts": {"union": len(cand_ids), "searches": sum(
+            1 for s in trace if s["step"] == "search")},
     }

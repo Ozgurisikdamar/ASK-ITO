@@ -8,6 +8,7 @@ knowledge is used only in the explicit `closed_book` baseline mode.
 """
 from __future__ import annotations
 
+import logging
 import re
 import threading
 from dataclasses import dataclass
@@ -16,8 +17,10 @@ from typing import Iterator
 from app.agent.prompts import load
 from app.config import settings
 from app.llm.client import LLMClient, get_llm_client
+from app.llm.metrics import current_recorder, instrumented, llm_role
 from app.retrieval.hydrate import ChunkInfo, body_without_prefix
 
+log = logging.getLogger("askito.answer")
 _CITE = re.compile(r"\[(\d+)\]")
 NOT_FOUND = "I could not find this in the sources."
 
@@ -43,12 +46,28 @@ def build_sources(final: list[tuple[int, float]], infos: dict[int, ChunkInfo]) -
 
 
 def build_context(sources: list[Source], max_chars: int | None = None) -> str:
+    """Numbered passages for the prompt. Each passage body is capped at
+    `max_chars` (ANSWER_CONTEXT_CHARS / OVERVIEW_CONTEXT_CHARS); how much was cut
+    is logged and recorded in the request metrics (counts only, no text)."""
     max_chars = max_chars or settings.answer_context_chars
     blocks = []
+    trimmed_sources, trimmed_chars, kept_chars = 0, 0, 0
     for s in sources:
-        body = body_without_prefix(s.info.text)[:max_chars]
+        full = body_without_prefix(s.info.text)
+        body = full[:max_chars]
+        if len(full) > max_chars:
+            trimmed_sources += 1
+            trimmed_chars += len(full) - max_chars
+        kept_chars += len(body)
         header = s.info.doc_title + (f" > {s.info.section}" if s.info.section else "")
         blocks.append(f"[{s.n}] {header}\n{body}")
+    trim = {"sources": len(sources), "trimmed_sources": trimmed_sources,
+            "chars_trimmed": trimmed_chars, "chars_kept": kept_chars, "max_chars": max_chars}
+    if trimmed_sources:
+        log.debug("context trimmed: %s", trim)
+    rec = current_recorder()
+    if rec is not None:
+        rec.note("context_trim", trim)
     return "\n\n".join(blocks)
 
 
@@ -67,6 +86,10 @@ def validate_citations(answer: str, n_sources: int) -> tuple[str, list[int]]:
     cleaned = _CITE.sub(repl, answer)
     cleaned = re.sub(r"[ \t]{2,}", " ", cleaned).strip()
     return cleaned, sorted(used)
+
+
+def _role(mode: str) -> str:
+    return mode if mode in ("overview", "closed_book") else "answer"
 
 
 def _messages(query: str, sources: list[Source], mode: str) -> tuple[list[dict], int]:
@@ -96,10 +119,11 @@ def generate_answer(
 ) -> tuple[str, list[dict]]:
     if mode != "closed_book" and not sources:
         return NOT_FOUND, []
-    llm = llm or get_llm_client()
+    llm = instrumented(llm or get_llm_client())
     messages, max_tokens = _messages(query, sources, mode)
-    raw = llm.chat(messages, temperature=temperature,
-                   model=settings.model_for("answer"), max_tokens=max_tokens)
+    with llm_role(_role(mode)):
+        raw = llm.chat(messages, temperature=temperature,
+                       model=settings.model_for("answer"), max_tokens=max_tokens)
     return _finish(raw, sources, mode)
 
 
@@ -116,14 +140,15 @@ def stream_answer(
         yield "token", NOT_FOUND
         yield "done", {"answer": NOT_FOUND, "citations": []}
         return
-    llm = llm or get_llm_client()
+    llm = instrumented(llm or get_llm_client())
     messages, max_tokens = _messages(query, sources, mode)
     parts: list[str] = []
-    for piece in llm.stream_chat(messages, temperature=temperature,
-                                 model=settings.model_for("answer"),
-                                 max_tokens=max_tokens, cancel=cancel):
-        parts.append(piece)
-        yield "token", piece
+    with llm_role(_role(mode)):
+        for piece in llm.stream_chat(messages, temperature=temperature,
+                                     model=settings.model_for("answer"),
+                                     max_tokens=max_tokens, cancel=cancel):
+            parts.append(piece)
+            yield "token", piece
     if cancel is not None and cancel.is_set():
         return
     answer, citations = _finish("".join(parts), sources, mode)

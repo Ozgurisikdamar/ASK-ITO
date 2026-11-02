@@ -10,6 +10,7 @@ import time
 from app.agent.answer import Source, build_sources, generate_answer
 from app.config import settings
 from app.llm.client import LLMClient
+from app.llm.metrics import log_request, recording
 from app.retrieval import hydrate, pipeline
 
 
@@ -77,18 +78,22 @@ def run_search(
 ) -> dict:
     t0 = time.perf_counter()
     k = final_k or context_k(mode)
-    result = pipeline.run_retrieval(query, mode, domain=domain, final_k=k)
+    with recording() as rec:
+        result = pipeline.run_retrieval(query, mode, domain=domain, final_k=k)
 
-    infos = hydrate.fetch_chunks([cid for cid, _ in result.final])
-    sources = build_sources(result.final, infos)
+        infos = hydrate.fetch_chunks([cid for cid, _ in result.final])
+        sources = build_sources(result.final, infos)
 
-    ta = time.perf_counter()
-    answer, citations = generate_answer(query, sources, llm=llm, mode=mode)
-    answer_ms = int((time.perf_counter() - ta) * 1000)
+        ta = time.perf_counter()
+        answer, citations = generate_answer(query, sources, llm=llm, mode=mode)
+        answer_ms = int((time.perf_counter() - ta) * 1000)
 
     timings = dict(result.timings)
     timings["answer"] = answer_ms
     timings["total"] = int((time.perf_counter() - t0) * 1000)
+    metrics = request_metrics(mode, timings, rec, result.counts, len(sources),
+                              cached=result.cached)
+    log_request(mode, metrics)
 
     return {
         "mode": result.mode,
@@ -100,4 +105,20 @@ def run_search(
         "rewritten_query": result.rewritten_query,
         "ranked_chunk_ids": [c for c, _ in result.ranked],
         "timings": timings,
+        "metrics": metrics,
+    }
+
+
+def request_metrics(mode: str, timings: dict, rec, counts: dict, context_chunks: int,
+                    cached: bool = False) -> dict:
+    """Per-request observability object (timings, LLM calls, candidate counts)."""
+    stages = ("bm25", "vector", "rrf", "rerank", "rewrite")
+    return {
+        "mode": mode,
+        "total_ms": timings.get("total"),
+        "retrieval_ms": {s: timings[s] for s in stages if s in timings},
+        "answer_ms": timings.get("answer"),
+        "llm": rec.summary(),
+        "candidates": {**counts, "context_chunks": context_chunks},
+        "retrieval_cached": cached,
     }

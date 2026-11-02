@@ -395,6 +395,18 @@ class FallbackClient:
 
     def __init__(self, primary, fallback) -> None:
         self.primary, self.fallback = primary, fallback
+        self.last_used_fallback = False
+
+    @property
+    def last_usage(self) -> dict:
+        src = self.fallback if self.last_used_fallback else self.primary
+        return getattr(src, "last_usage", {}) or {}
+
+    @last_usage.setter
+    def last_usage(self, value: dict) -> None:
+        for c in (self.primary, self.fallback):
+            if hasattr(c, "last_usage"):
+                c.last_usage = value
 
     def ping(self):
         ok, msg = self.primary.ping()
@@ -404,21 +416,29 @@ class FallbackClient:
         return ok2, f"primary down ({msg}); fallback {msg2}"
 
     def chat(self, messages, **kw):
+        self.last_used_fallback = False
         try:
             return self.primary.chat(messages, **kw)
-        except (LLMError, httpx.HTTPError):
+        except (LLMError, httpx.HTTPError) as exc:
+            log.warning("primary LLM failed (%s); using the fallback endpoint",
+                        exc.__class__.__name__)
+            self.last_used_fallback = True
             kw.pop("model", None)
             return self.fallback.chat(messages, **kw)
 
     def stream_chat(self, messages, **kw):
         started = False
+        self.last_used_fallback = False
         try:
             for piece in self.primary.stream_chat(messages, **kw):
                 started = True
                 yield piece
-        except (LLMError, httpx.HTTPError):
+        except (LLMError, httpx.HTTPError) as exc:
             if started:
                 raise
+            log.warning("primary LLM failed (%s); using the fallback endpoint",
+                        exc.__class__.__name__)
+            self.last_used_fallback = True
             kw.pop("model", None)
             yield from self.fallback.stream_chat(messages, **kw)
 
@@ -440,12 +460,14 @@ def make_client(mode: str, base_url: str, api_key: str, default_model: str = "")
 
 @lru_cache(maxsize=1)
 def get_llm_client() -> LLMClient:
+    from app.llm.metrics import instrumented
+
     primary = make_client(settings.llm_mode, settings.llm_base_url, settings.llm_api_key)
     if settings.llm_fallback_mode and settings.llm_mode != "mock":
         fallback = make_client(settings.llm_fallback_mode, settings.llm_fallback_base_url,
                                settings.llm_fallback_api_key, settings.llm_fallback_model)
-        return FallbackClient(primary, fallback)
-    return primary
+        return instrumented(FallbackClient(primary, fallback))
+    return instrumented(primary)
 
 
 def reset_llm_client() -> None:

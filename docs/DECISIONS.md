@@ -218,3 +218,18 @@ RAGAS runs with one worker and a long timeout (`RAGAS_TIMEOUT_S`) because a
 single local model serves one request at a time; parallel judge jobs would only
 queue and time out.
 
+## ADR-0020: Request instrumentation
+`app/llm/metrics.py` records every LLM call of a request (role, model,
+duration, provider-reported prompt/completion tokens, load time / cold start,
+time to first token for streams, error/timeout/fallback flags) through a
+context-local recorder and a transparent client wrapper; prompt and output text
+are never recorded. `/api/search`, the agent result and the SSE `done` event
+carry an additive `metrics` object (per-stage retrieval times, LLM calls by
+role, candidate counts before/after reranking, context chunk count, context
+trimming counts), and one structured log line per request is written to the
+`askito.metrics` logger. The eval runner stores these per question. Ollama
+calls whose prompt fills the context window (Ollama would drop its beginning
+silently) are logged as warnings and counted. A failed query rewrite is now
+logged instead of being swallowed silently (the search still falls back to the
+original query).
+

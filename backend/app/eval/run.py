@@ -108,8 +108,21 @@ def _answer_for(mode: str, q: dict) -> dict:
     from app.retrieval.service import run_search
 
     r = run_search(q["question"], mode=mode, domain="all", final_k=settings.final_k)
-    r["llm_calls"] = 0 if mode == "closed_book" else 1
+    r["llm_calls"] = r["metrics"]["llm"]["calls"]  # measured (0 when no sources)
     return r
+
+
+def _ops(resp: dict) -> dict:
+    """Operational metrics stored per question (no prompt/answer text)."""
+    met = resp.get("metrics") or {}
+    llm = met.get("llm") or {}
+    return {
+        "llm_ms": llm.get("total_ms"), "llm_calls": llm.get("calls"),
+        "llm_by_role": llm.get("by_role"), "prompt_tokens": llm.get("prompt_tokens"),
+        "completion_tokens": llm.get("completion_tokens"), "llm_errors": llm.get("errors"),
+        "context_overflows": llm.get("context_overflows"),
+        "retrieval_ms": met.get("retrieval_ms"), "rounds": resp.get("rounds"),
+    }
 
 
 def run_config(conn, mode: str, questions: list[dict]) -> int:
@@ -122,6 +135,7 @@ def run_config(conn, mode: str, questions: list[dict]) -> int:
     conn.commit()
 
     for q in questions:
+        pipeline.cache_clear()  # every question is a real (uncached) retrieval
         t0 = time.perf_counter()
         resp = _answer_for(mode, q)
         latency = int((time.perf_counter() - t0) * 1000)
@@ -131,6 +145,7 @@ def run_config(conn, mode: str, questions: list[dict]) -> int:
         m["refusal_correct"] = (
             float(metrics.refusal_correct(resp["answer"])) if q["qtype"] == "unanswerable" else None
         )
+        m["ops"] = _ops(resp)
         conn.execute(
             """INSERT INTO eval_results
                (run_id, question_id, answer, retrieved_chunk_ids, metrics, trace, latency_ms, llm_calls)
@@ -182,6 +197,10 @@ def _summarize(conn, run_id: int, mode: str, questions: list[dict]) -> dict:
         "operational": {
             "latency_ms": metrics.percentiles(latencies),
             "avg_llm_calls": (sum(r[5] for r in rows) / len(rows)) if rows else 0,
+            "llm_ms": metrics.percentiles(
+                [int(r[3]["ops"]["llm_ms"]) for r in rows
+                 if (r[3].get("ops") or {}).get("llm_ms") is not None]),
+            "p95_llm_calls": metrics.percentiles([r[5] for r in rows]).get("p95"),
         },
     }
 
