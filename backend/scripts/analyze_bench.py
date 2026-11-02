@@ -104,7 +104,7 @@ def eval_row(label: str, conn) -> dict:
         "refusal": mean_or_none([u["metrics"].get("refusal_correct") for u in rep1]),
         "n_unanswerable": sum(1 for u in rep1 if u["metrics"].get("refusal_correct") is not None),
         "citations": {k: mean_or_none([c[k] for c in cites]) for k in
-                      ("raw_citation_validity", "citation_coverage", "uncited_sentence_rate",
+                      ("citation_id_validity", "citation_coverage", "uncited_sentence_rate",
                        "citation_gold_precision")},
         "not_found_rate": mean_or_none([1.0 if c["not_found"] else 0.0 for c in cites]),
         "context_overflows": sum(1 for u in units for c in u["llm_calls"]

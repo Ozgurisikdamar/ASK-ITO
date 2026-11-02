@@ -79,10 +79,13 @@ def refusal_correct(answer: str) -> bool:
 
 
 # --------------------------------------------------------------------------
-# Deterministic answer/citation metrics (no LLM). Definitions:
-#   raw_citation_validity  share of [n] markers in the model's raw output that
+# Deterministic answer/citation metrics (no LLM). They check citation *IDs* and
+# sentence coverage only — not whether a cited passage supports the sentence;
+# that is claim-level support, measured offline by app.eval.claim_support.
+#   citation_id_validity   share of [n] markers in the model's raw output that
 #                          point to an existing source (1..n_sources); the
 #                          invalid ones are stripped by validate_citations.
+#                          A valid ID can still cite an irrelevant passage.
 #   citation_coverage      share of answer sentences carrying >= 1 citation.
 #   uncited_sentence_rate  1 - citation_coverage (input to the hallucination
 #                          audit: uncited sentences are unsupported by design).
@@ -102,7 +105,7 @@ def citation_metrics(answer: str, raw_citations: list[int] | None, n_sources: in
     not_found = refusal_correct(answer)
     out: dict[str, float | bool | None] = {"not_found": not_found}
     raw = raw_citations or []
-    out["raw_citation_validity"] = (
+    out["citation_id_validity"] = (
         sum(1 for n in raw if 1 <= n <= n_sources) / len(raw) if raw else None)
     sents = [] if not_found else answer_sentences(answer)
     if sents:

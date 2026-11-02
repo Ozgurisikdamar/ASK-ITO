@@ -80,7 +80,7 @@ def test_ragas_is_not_imported_by_the_serving_path():
         "os.environ['PREWARM_FEATURED']='false';"
         "import app.main, app.api.search, app.api.stream, app.retrieval.service;"
         "print(json.dumps(sorted(m for m in sys.modules if m.split('.')[0] in "
-        "('ragas', 'datasets') or m == 'app.eval.ragas_eval')))"
+        "('ragas', 'datasets') or m in ('app.eval.ragas_eval', 'app.eval.claim_support'))))"
     )
     out = subprocess.run([sys.executable, "-c", "import json;" + code], cwd=BACKEND,
                          capture_output=True, text=True, timeout=300)

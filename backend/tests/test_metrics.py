@@ -49,7 +49,7 @@ def test_citation_metrics_definitions():
     ans = "Hopfield built a memory model [1]. Hinton extended it [2][3]. Both won in 2024."
     m = citation_metrics(ans, raw_citations=[1, 2, 3, 9], n_sources=3,
                          cited_doc_ids=[10, 11, 12], gold_doc_ids={10, 11})
-    assert m["raw_citation_validity"] == 0.75
+    assert m["citation_id_validity"] == 0.75
     assert abs(m["citation_coverage"] - 2 / 3) < 1e-9
     assert abs(m["uncited_sentence_rate"] - 1 / 3) < 1e-9
     assert abs(m["citation_gold_precision"] - 2 / 3) < 1e-9
@@ -61,5 +61,5 @@ def test_citation_metrics_not_found_and_missing_gold():
 
     m = citation_metrics("I could not find this in the sources.", [], 5, [], set())
     assert m["not_found"] is True
-    assert m["citation_coverage"] is None and m["raw_citation_validity"] is None
+    assert m["citation_coverage"] is None and m["citation_id_validity"] is None
     assert m["citation_gold_precision"] is None
