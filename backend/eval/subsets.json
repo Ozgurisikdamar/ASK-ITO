@@ -43,6 +43,11 @@
       "Who shared the 2025 Nobel Prize in Physics and for what?",
       "Which three scientists shared the 2022 Nobel Prize in Physics?",
       "What is quantum error correction and why is it needed?"
+    ],
+    "rag3": [
+      "Which came first, the 2022 or 2023 Nobel Prize in Physics, and what did each cover?",
+      "The 2024 Physics laureate Geoffrey Hinton is associated with which stochastic neural network cited in the prize's background?",
+      "Which three scientists shared the 2022 Nobel Prize in Physics?"
     ]
   },
   "composition": {
@@ -68,8 +73,13 @@
       "recent": 1,
       "single_hop": 1,
       "quantum": 1
+    },
+    "rag3": {
+      "comparison": 1,
+      "multi_hop": 1,
+      "single_hop": 1
     }
   },
   "total_questions": 46,
-  "note": "rag6 is a stratified subset of lat12 (answerable questions only), used for the RAGAS pass"
+  "note": "rag6 is a stratified subset of lat12 (answerable questions only); rag3 (one single-hop, one multi-hop, one comparison question) is a subset of rag6 and is the RAGAS sample"
 }
