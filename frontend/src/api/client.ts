@@ -1,6 +1,9 @@
 // Backend API client. Requests go to /api and are proxied to the backend
 // (see vite.config.ts) in dev.
 
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
+const apiUrl = (path: string) => `${API_BASE}${path}`;
+
 export interface ComponentStatus {
   status: string;
   [key: string]: unknown;
@@ -17,7 +20,7 @@ export interface HealthResponse {
 }
 
 export async function getHealth(): Promise<HealthResponse> {
-  const resp = await fetch("/api/health");
+  const resp = await fetch(apiUrl("/api/health"));
   if (!resp.ok) throw new Error(`health request failed: ${resp.status}`);
   return resp.json();
 }
@@ -95,7 +98,7 @@ export function openSearchStream(
   h: StreamHandlers
 ): () => void {
   const qs = new URLSearchParams({ q: p.query, mode: p.mode, domain: p.domain });
-  const es = new EventSource(`/api/search/stream?${qs.toString()}`);
+  const es = new EventSource(apiUrl(`/api/search/stream?${qs.toString()}`));
   let finished = false;
   const finish = () => {
     finished = true;
@@ -127,7 +130,7 @@ export function openSearchStream(
 }
 
 export async function getFeatured(): Promise<string[]> {
-  const r = await fetch("/api/suggest/featured");
+  const r = await fetch(apiUrl("/api/suggest/featured"));
   if (!r.ok) throw new Error(`featured failed: ${r.status}`);
   return (await r.json()).queries as string[];
 }
@@ -181,7 +184,7 @@ export interface ReviewResponse {
 }
 
 export async function getReview(): Promise<ReviewResponse> {
-  const resp = await fetch("/api/eval/review");
+  const resp = await fetch(apiUrl("/api/eval/review"));
   if (!resp.ok) throw new Error(`review request failed: ${resp.status}`);
   return resp.json();
 }
@@ -192,7 +195,7 @@ export async function postReview(action: {
   question?: string;
   reference?: string | null;
 }): Promise<{ id: string; status: string; accepted_total: number }> {
-  const resp = await fetch("/api/eval/review", {
+  const resp = await fetch(apiUrl("/api/eval/review"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(action),
@@ -216,7 +219,7 @@ export interface EvalRun {
 }
 
 export async function getRuns(): Promise<{ runs: EvalRun[] }> {
-  const r = await fetch("/api/eval/runs");
+  const r = await fetch(apiUrl("/api/eval/runs"));
   if (!r.ok) throw new Error(`runs failed: ${r.status}`);
   return r.json();
 }
@@ -247,7 +250,7 @@ export interface RunDetail {
 }
 
 export async function getRunDetail(id: number): Promise<RunDetail> {
-  const r = await fetch(`/api/eval/runs/${id}`);
+  const r = await fetch(apiUrl(`/api/eval/runs/${id}`));
   if (!r.ok) throw new Error(`run detail failed: ${r.status}`);
   return r.json();
 }
@@ -265,13 +268,13 @@ export async function getCompare(a: number, b: number): Promise<{
   improved: CompareRow[];
   regressed: CompareRow[];
 }> {
-  const r = await fetch(`/api/eval/compare?a=${a}&b=${b}`);
+  const r = await fetch(apiUrl(`/api/eval/compare?a=${a}&b=${b}`));
   if (!r.ok) throw new Error(`compare failed: ${r.status}`);
   return r.json();
 }
 
 export async function startRun(configs: string[]): Promise<{ status: string; configs: string[] }> {
-  const r = await fetch("/api/eval/runs", {
+  const r = await fetch(apiUrl("/api/eval/runs"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ configs }),
@@ -285,7 +288,7 @@ export async function search(
   req: SearchRequest,
   signal?: AbortSignal
 ): Promise<SearchResponse> {
-  const resp = await fetch("/api/search", {
+  const resp = await fetch(apiUrl("/api/search"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
