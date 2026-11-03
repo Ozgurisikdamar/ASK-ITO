@@ -5,7 +5,7 @@ from app.main import app
 
 client = TestClient(app)
 
-EXPECTED_COMPONENTS = {"db", "bm25", "embedding", "reranker", "ragas", "llm"}
+EXPECTED_COMPONENTS = {"db", "bm25", "embedding", "reranker", "ragas", "llm", "redis"}
 
 
 def test_root_ok():
@@ -32,3 +32,8 @@ def test_health_llm_mock_mode():
     llm = resp.json()["components"]["llm"]
     assert llm["mode"] == "mock"
     assert llm["status"] == "ok"
+
+
+def test_health_redis_disabled_by_default():
+    comp = client.get("/api/health").json()["components"]["redis"]
+    assert comp["status"] == "disabled" and comp["enabled"] is False

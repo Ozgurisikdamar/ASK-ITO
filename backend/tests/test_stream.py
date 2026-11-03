@@ -159,8 +159,12 @@ def test_answer_cache_roundtrip():
     q = "answer cache roundtrip test query"
     answer_cache.put(q, "overview", "all", "Cached answer [1].", [{"n": 1}], [1, 2])
     hit = answer_cache.get(q.upper() + "  ", "overview", "all")  # normalised key
-    assert hit == {"answer": "Cached answer [1].", "citations": [{"n": 1}], "chunk_ids": [1, 2]}
+    assert hit == {"answer": "Cached answer [1].", "citations": [{"n": 1}], "chunk_ids": [1, 2],
+                   "cache_kind": "pg"}
     assert answer_cache.get(q, "overview", "nobel") is None
+    # same sources -> hit; other sources -> miss ([1] would point at another passage)
+    assert answer_cache.get(q, "overview", "all", source_ids=[1, 2]) is not None
+    assert answer_cache.get(q, "overview", "all", source_ids=[2, 1]) is None
     with psycopg.connect(settings.database_url) as c:
         c.execute("DELETE FROM answer_cache WHERE query = %s", (q,))
 
