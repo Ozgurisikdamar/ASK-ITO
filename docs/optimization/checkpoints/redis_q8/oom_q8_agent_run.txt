@@ -1,0 +1,2 @@
+[ 8289.160503] Memory cgroup out of memory: Killed process 14505 (llama-server) total-vm:14650424kB, anon-rss:13030648kB, file-rss:4372kB, shmem-rss:0kB, UID:0 pgtables:25740kB oom_score_adj:0
+[ 8289.294103] Memory cgroup out of memory: Killed process 15595 (python) total-vm:4465832kB, anon-rss:841248kB, file-rss:9244kB, shmem-rss:0kB, UID:0 pgtables:4840kB oom_score_adj:0

@@ -1,0 +1,8 @@
+load_tensors:          CPU model buffer size =   549.67 MiB
+llama_kv_cache: size =  128.00 MiB (  4096 cells,   8 layers,  1/1 seqs), K (f16):   64.00 MiB, V (f16):   64.00 MiB
+load_tensors:          AMX model buffer size =  8987.00 MiB
+load_tensors:          CPU model buffer size =  1034.67 MiB
+llama_kv_cache: size =  128.00 MiB (  4096 cells,   8 layers,  1/1 seqs), K (f16):   64.00 MiB, V (f16):   64.00 MiB
+load_tensors:          AMX model buffer size =  4893.05 MiB
+load_tensors:          CPU model buffer size =   549.67 MiB
+llama_kv_cache: size =  128.00 MiB (  4096 cells,   8 layers,  1/1 seqs), K (f16):   64.00 MiB, V (f16):   64.00 MiB

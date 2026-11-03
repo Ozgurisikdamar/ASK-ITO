@@ -1,0 +1,150 @@
+{
+ "label": "baseline_4433ebd_q4",
+ "code_sha": "4433ebd",
+ "app_root": "/home/user/ask-ito-base/backend",
+ "model": "qwen3.5:9b",
+ "tool_cache_available": false,
+ "max_rounds": 3,
+ "max_llm_calls": 10,
+ "timeout_s": 180,
+ "rewrite_policy": "always",
+ "adaptive_sufficiency": false,
+ "rows": [
+  {
+   "pass": 1,
+   "kind": "simple_fact",
+   "question": "What is a transmon qubit?",
+   "total_s": 220.1,
+   "llm_calls": 4,
+   "by_role": {
+    "analyze": 1,
+    "rewrite": 1,
+    "sufficiency": 1,
+    "answer": 1
+   },
+   "llm_s_by_role": {
+    "analyze": 60.4,
+    "rewrite": 5.9,
+    "sufficiency": 26.1,
+    "answer": 81.4
+   },
+   "prompt_tokens": 2500,
+   "completion_tokens": 205,
+   "rounds": 1,
+   "searches": 1,
+   "rerank_passes": 2,
+   "qtype": "simple",
+   "subquestions": 0,
+   "guards": {},
+   "tool_cache_hits": {},
+   "answer": "A transmon is a type of superconducting charge qubit designed to have reduced sensitivity to charge noise [2]. It is a special type of qubit with a shunted capacitor specifically designed to mitigate noise [1]. The name \"transmon\" is an abbreviation for \"transmission line shunted plasma oscillation qubit\" [2]. Its design is similar to the Cooper-pair box, but it achieves its reduced sensitivity by significantly increasing the ratio of Josephson energy to charging energy ($E_J/E_C \\gg 1$) through shunting the Josephson junction with an additional large capacitor [3]. This increased ratio mitigates noise and makes the qubit's energy levels independent of the offset charge, thereby prolonging the dephasing time [3].",
+   "citations": [
+    1,
+    2,
+    3
+   ],
+   "abstained": false
+  },
+  {
+   "pass": 1,
+   "kind": "multi_hop",
+   "question": "What did Hopfield and Hinton each contribute to the 2024 Nobel Prize in Physics?",
+   "total_s": 162.4,
+   "llm_calls": 6,
+   "by_role": {
+    "analyze": 1,
+    "rewrite": 3,
+    "sufficiency": 1,
+    "answer": 1
+   },
+   "llm_s_by_role": {
+    "analyze": 33.1,
+    "rewrite": 24.9,
+    "sufficiency": 26.8,
+    "answer": 44.0
+   },
+   "prompt_tokens": 2570,
+   "completion_tokens": 239,
+   "rounds": 1,
+   "searches": 3,
+   "rerank_passes": 4,
+   "qtype": "multi_hop",
+   "subquestions": 3,
+   "guards": {},
+   "tool_cache_hits": {},
+   "answer": "John Hopfield contributed his work on physics-inspired Hopfield networks, while Geoffrey Hinton made foundational contributions to Boltzmann machines and deep learning [5]. They shared the 2024 Nobel Prize in Physics for \"foundational discoveries and inventions that enable machine learning with artificial neural networks\" [1][4].",
+   "citations": [
+    1,
+    4,
+    5
+   ],
+   "abstained": false
+  },
+  {
+   "pass": 1,
+   "kind": "comparison",
+   "question": "How do superconducting qubits compare with trapped-ion qubits?",
+   "total_s": 166.7,
+   "llm_calls": 6,
+   "by_role": {
+    "analyze": 1,
+    "rewrite": 2,
+    "sufficiency": 2,
+    "answer": 1
+   },
+   "llm_s_by_role": {
+    "analyze": 17.9,
+    "rewrite": 11.0,
+    "sufficiency": 67.5,
+    "answer": 48.3
+   },
+   "prompt_tokens": 3141,
+   "completion_tokens": 281,
+   "rounds": 3,
+   "searches": 4,
+   "rerank_passes": 5,
+   "qtype": "comparison",
+   "subquestions": 2,
+   "guards": {},
+   "tool_cache_hits": {},
+   "answer": "The provided context does not contain direct comparisons between superconducting qubits and trapped-ion qubits regarding their performance, architecture, or specific advantages relative to one another. It mentions both as developed proposals for reliable qubit implementations [3] and notes that demonstrations of quantum error correction have been made with both technologies [2]. However, no specific comparative metrics are available in the sources.\n\nI could not find this in the sources.",
+   "citations": [
+    2,
+    3
+   ],
+   "abstained": false
+  },
+  {
+   "pass": 1,
+   "kind": "near_domain_unsupported",
+   "question": "Which organisation received the 2024 Nobel Peace Prize?",
+   "total_s": 141.1,
+   "llm_calls": 5,
+   "by_role": {
+    "analyze": 1,
+    "rewrite": 1,
+    "sufficiency": 2,
+    "answer": 1
+   },
+   "llm_s_by_role": {
+    "analyze": 11.1,
+    "rewrite": 7.5,
+    "sufficiency": 68.4,
+    "answer": 30.2
+   },
+   "prompt_tokens": 3217,
+   "completion_tokens": 155,
+   "rounds": 3,
+   "searches": 3,
+   "rerank_passes": 4,
+   "qtype": "simple",
+   "subquestions": 0,
+   "guards": {},
+   "tool_cache_hits": {},
+   "answer": "I could not find this in the sources.",
+   "citations": [],
+   "abstained": true
+  }
+ ],
+ "measured_at": "2026-11-03T08:33:52Z"
+}

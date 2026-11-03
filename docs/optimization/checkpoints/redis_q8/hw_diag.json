@@ -1,0 +1,61 @@
+{
+ "host": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "logical_cpus": 4,
+  "ram_gb": 15.7,
+  "simd": [
+   "avx2",
+   "avx512f",
+   "avx512_vnni",
+   "amx_tile"
+  ],
+  "os": "Linux 6.18.44-fc-v230",
+  "arch": "x86_64"
+ },
+ "gpus": [],
+ "device_nodes": [],
+ "ollama_loaded": [
+  {
+   "model": "qwen3.5:9b",
+   "size_mb": 5986,
+   "vram_mb": 4893,
+   "vram_fraction": 0.817,
+   "quantization": "Q4_K_M"
+  }
+ ],
+ "compute_libraries": [
+  "cpu"
+ ],
+ "verdict": "cpu_only",
+ "notes": [
+  "Ollama reports size_vram > 0 but no GPU device was found: this runtime counts CPU extra buffers (e.g. AMX) as VRAM; not GPU offload",
+  "runner libraries from the Ollama log: ['cpu']"
+ ],
+ "ollama_log": [
+  "load_tensors:          AMX model buffer size =  4730.36 MiB",
+  "load_tensors:          CPU model buffer size =   335.02 MiB",
+  "llama_context: flash_attn            = enabled",
+  "llama_kv_cache: size =  306.00 MiB (  4096 cells,  36 layers,  1/1 seqs), K (q8_0):  153.00 MiB, V (q8_0):  153.00 MiB",
+  "load_tensors:          AMX model buffer size =  4893.05 MiB",
+  "load_tensors:          CPU model buffer size =   549.67 MiB",
+  "llama_context: flash_attn            = enabled",
+  "llama_kv_cache: size =   68.00 MiB (  4096 cells,   8 layers,  1/1 seqs), K (q8_0):   34.00 MiB, V (q8_0):   34.00 MiB",
+  "cmn  common_init_: KV cache shifting is not supported for this context, disabling KV cache shifting",
+  "time=2026-11-03T08:10:06.332Z level=INFO source=types.go:50 msg=\"inference compute\" id=cpu library=cpu compute=\"\" name=cpu description=cpu libdirs=ollama driver=\"\" pci_id=\"\" type=\"\" total=\"15.7 GiB\" available=\"14.9 GiB\"",
+  "load_tensors:          AMX model buffer size =  4893.05 MiB",
+  "load_tensors:          CPU model buffer size =   549.67 MiB",
+  "llama_context: flash_attn            = enabled",
+  "llama_kv_cache: size =  128.00 MiB (  4096 cells,   8 layers,  1/1 seqs), K (f16):   64.00 MiB, V (f16):   64.00 MiB",
+  "cmn  common_init_: KV cache shifting is not supported for this context, disabling KV cache shifting",
+  "load_tensors:          AMX model buffer size =  8987.00 MiB",
+  "load_tensors:          CPU model buffer size =  1034.67 MiB",
+  "llama_context: flash_attn            = enabled",
+  "llama_kv_cache: size =  128.00 MiB (  4096 cells,   8 layers,  1/1 seqs), K (f16):   64.00 MiB, V (f16):   64.00 MiB",
+  "cmn  common_init_: KV cache shifting is not supported for this context, disabling KV cache shifting",
+  "load_tensors:          AMX model buffer size =  4893.05 MiB",
+  "load_tensors:          CPU model buffer size =   549.67 MiB",
+  "llama_context: flash_attn            = enabled",
+  "llama_kv_cache: size =  128.00 MiB (  4096 cells,   8 layers,  1/1 seqs), K (f16):   64.00 MiB, V (f16):   64.00 MiB",
+  "cmn  common_init_: KV cache shifting is not supported for this context, disabling KV cache shifting"
+ ]
+}
