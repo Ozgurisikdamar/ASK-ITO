@@ -555,6 +555,7 @@ class ModelLoad:
         self.started = time.monotonic()
         self.done = threading.Event()
         self.error: LLMError | None = None
+        self.finished = 0.0
 
     def elapsed(self) -> float:
         return time.monotonic() - self.started
@@ -562,6 +563,19 @@ class ModelLoad:
 
 _loads: dict[tuple[str, str], ModelLoad] = {}
 _loads_lock = threading.Lock()
+
+
+def load_status() -> list[dict]:
+    """Last model-load result per model (for /api/health): ok / loading / error code."""
+    out = []
+    with _loads_lock:
+        handles = list(_loads.values())
+    for h in handles:
+        state = "loading" if not h.done.is_set() else ("error" if h.error else "ok")
+        out.append({"model": h.model, "state": state, "seconds": round(h.elapsed(), 1)
+                    if not h.done.is_set() else round(h.finished - h.started, 1),
+                    "error": getattr(h.error, "code", None)})
+    return out
 
 
 def _load_for(client: "OllamaClient", model: str) -> ModelLoad:
@@ -593,6 +607,7 @@ def _load_for(client: "OllamaClient", model: str) -> ModelLoad:
         except Exception as exc:  # noqa: BLE001
             handle.error = LLMError(f"model load failed ({exc.__class__.__name__})")
         finally:
+            handle.finished = time.monotonic()
             handle.done.set()
 
     threading.Thread(target=run, name=f"askito-load-{model}", daemon=True).start()

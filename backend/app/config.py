@@ -39,11 +39,14 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://localhost:11434"
     llm_api_key: str = "ollama"
     # The one place the model tag is set (env LLM_DEFAULT_MODEL overrides it).
-    # Weights: Q8_0 (qwen3.5:9b-q8_0, manifest verified: file_type Q8_0).
-    # Baseline / rollback: qwen3.5:9b-q4_K_M (same manifest as qwen3.5:9b).
-    # No lower weight quantization is recommended. KV-cache precision is a
-    # separate Ollama setting (OLLAMA_KV_CACHE_TYPE), not part of the tag.
-    llm_default_model: str = "qwen3.5:9b-q8_0"
+    # Default: Q8_0 weights (registry tag qwen3.5:9b-q8_0, manifest file_type Q8_0)
+    # served as a text-only tag that points at the same GGUF blob without the vision
+    # projector (scripts/make_text_model.py; `./askito model` creates it). Measured:
+    # identical answers, peak runner memory 10.6 GB instead of 12.3 GB.
+    # Q4_K_M (qwen3.5:9b-q4_K_M) is only an explicit benchmark option. KV-cache
+    # precision is a separate Ollama setting (OLLAMA_KV_CACHE_TYPE).
+    llm_default_model: str = "askito/qwen3.5:9b-q8_0-text"
+    llm_source_model: str = "qwen3.5:9b-q8_0"  # registry tag the text-only tag is made from
     llm_agent_model: str = ""
     llm_answer_model: str = ""
     llm_judge_model: str = ""

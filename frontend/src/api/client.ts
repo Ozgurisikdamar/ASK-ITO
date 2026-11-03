@@ -98,6 +98,7 @@ export interface StreamError {
   error_id?: string;
   rid?: string;
   stage?: string;
+  reason?: string; // what the model server reported, as a fixed phrase
 }
 
 export interface StreamHandlers {

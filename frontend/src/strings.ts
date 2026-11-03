@@ -30,7 +30,7 @@ export const strings = {
   exampleChips: [
     "How is the 2025 Physics prize related to quantum computers?",
     "What is the attention mechanism in Transformers?",
-    "How does retrieval-augmented generation differ from fine-tuning a language model?",
+    "What did Hopfield and Hinton contribute to machine learning?",
     "How do AI agents use tools to complete tasks?",
     "How do neural networks learn with backpropagation?",
     "Why do quantum computers need error correction?",
@@ -80,6 +80,7 @@ export const strings = {
     answerFailed: "The AI answer could not be generated.",
     answerInterrupted: "The answer was interrupted.",
     retry: "Try again",
+    errorReason: "Model server",
     queued: "Waiting for the previous answer to stop…",
     modelLoading: (model: string, s: number) =>
       `Loading the local model${model ? ` (${model})` : ""} into memory… ${Math.floor(s / 60)}:${String(

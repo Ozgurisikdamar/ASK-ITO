@@ -19,9 +19,10 @@ MESSAGES = {
     "internal_error": "Something went wrong on the server. Please try again.",
     "busy": "Another answer is still being generated. Try again in a moment, or use Search.",
     # local model problems (app.llm.client.LLMError.code): say what to do
-    "model_memory": "The local model could not be loaded: not enough memory. The default "
-                    "Q8_0 model needs about 12 GB for Ollama alone (Docker Desktop: Settings "
-                    "→ Resources → Memory). Search still works.",
+    "model_memory": "The local model could not be loaded: not enough memory. The Q8_0 "
+                    "model needs about 10.6 GB for Ollama plus 1.1 GB for the backend (Docker "
+                    "Desktop: Settings → Resources → Memory, 14 GB or more). Run ./askito "
+                    "doctor for details. Search still works.",
     "model_not_found": "The local model is not installed. Run ./askito model, then try "
                        "again. Search still works.",
     "model_unreachable": "The local model server (Ollama) is not reachable. Start it and "
@@ -45,12 +46,34 @@ def safe_error(code: str, exc: BaseException | None = None) -> dict:
             "detail": MESSAGES.get(code, MESSAGES["internal_error"]), "error_id": error_id}
 
 
+# What Ollama said, reduced to a fixed phrase (never raw text: no paths or sizes
+# the user did not need). Order matters: the first match wins.
+_REASONS = (
+    ("signal: killed", "the model runner was stopped by the system (out of memory)"),
+    ("requires more system memory", "Ollama reported the model is larger than the free memory"),
+    ("reported out-of-memory during startup", "the model ran out of memory while loading"),
+    ("failed to allocate", "a memory allocation failed while loading the model"),
+    ("out of memory", "the model ran out of memory"),
+    ("not found", "the model tag is not present in Ollama"),
+    ("timed out waiting for llama-server", "Ollama gave up waiting for the model to load"),
+)
+
+
+def error_reason(exc: BaseException) -> str | None:
+    low = str(exc).lower()
+    return next((reason for needle, reason in _REASONS if needle in low), None)
+
+
 def llm_error(exc: BaseException, stage: str = "generation") -> dict:
-    """Public payload for a failed LLM call: its classified code and the matching
-    actionable message (unknown failures fall back to search_failed)."""
+    """Public payload for a failed LLM call: its classified code, the matching
+    actionable message and a fixed-phrase reason (unknown failures fall back to
+    search_failed)."""
     code = getattr(exc, "code", None)
     payload = safe_error(code if code in LLM_CODES else "search_failed", exc)
     payload["stage"] = stage
+    reason = error_reason(exc)
+    if reason:
+        payload["reason"] = reason
     return payload
 
 

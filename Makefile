@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up up-dev down model migrate ingest index testset-draft eval bench test dev
+.PHONY: help up up-dev down model doctor migrate ingest index testset-draft eval bench test dev
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -13,8 +13,11 @@ up: ## Start all docker-compose services
 up-dev: ## Start with hot reload (vite dev server + uvicorn --reload)
 	$(COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
-model: ## Pull the LLM into Ollama (MODEL=... overrides LLM_DEFAULT_MODEL)
-	$(COMPOSE) exec ollama ollama pull $(or $(MODEL),$(shell grep -E '^LLM_DEFAULT_MODEL=' .env 2>/dev/null | cut -d= -f2),$(error set LLM_DEFAULT_MODEL in .env or pass MODEL=))
+model: ## Pull the LLM into Ollama and create the text-only Q8_0 tag (see ./askito model)
+	./askito model $(MODEL)
+
+doctor: ## Memory / model / Ollama diagnostics
+	./askito doctor
 
 down: ## Stop all services
 	$(COMPOSE) down

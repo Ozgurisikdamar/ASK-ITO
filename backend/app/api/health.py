@@ -113,6 +113,8 @@ def _check_ragas() -> dict:
 
 
 def _check_llm() -> dict:
+    from app.llm.client import load_status
+
     client = get_llm_client()
     ok, msg = client.ping()
     return {
@@ -120,6 +122,7 @@ def _check_llm() -> dict:
         "mode": settings.llm_mode,
         "model": settings.model_for("answer"),
         "detail": msg,
+        "loads": load_status(),  # last background model load: ok / loading / error code
     }
 
 

@@ -164,14 +164,24 @@ caches. Outside Docker it is off (`REDIS_ENABLED=false`).
 After changing `.env` run `./askito model` (if the model is new) and
 `./askito restart`.
 
-*Memory and first load.* Q8_0 (`qwen3.5:9b-q8_0`) is the default and stays the
-default. Measured on a CPU-only sandbox with 15.7 GB (Ollama process RSS): about
-11.7 GB once loaded, up to 12.3 GB while answering; the backend's embedding and
-reranker models need about 1.1 GB more. Q8_0 plus the app therefore needs
-**at least 14 GB available to Docker**. With less, Ollama refuses to load the
-model or the kernel stops it; AI Mode then shows "not enough memory" (Search
-keeps working). `LLAMA_ARG_CACHE_RAM` (compose default 1024 MiB) caps
-llama-server's in-memory prompt cache, which otherwise grows to 8 GiB.
+*Memory and first load.* Q8_0 is the default and stays the default. The registry
+tag `qwen3.5:9b-q8_0` also contains a vision projector that Ollama loads with
+every model load (about 1.1 GB) although Ask ITO never sends images, so
+`./askito model` pulls that tag and then creates `askito/qwen3.5:9b-q8_0-text`:
+the **same Q8_0 GGUF blob** (no copy, same digest) with the same template,
+renderer, parser and parameters, without the projector
+(`backend/scripts/make_text_model.py`). Measured on a CPU-only sandbox with the
+5 smoke questions and identical prompts: **byte-identical answers and citations**;
+peak Ollama memory **10.6 GB instead of 12.3 GB**, flat across questions because
+llama-server's own prompt cache is now off (`LLAMA_ARG_CACHE_RAM=0`; repeats are
+served by the app's answer and agent tool caches). The backend's embedding and
+reranker models need about 1.1 GB more, so give Docker **at least 14 GB**. On a
+16 GB Mac that leaves macOS about 2 GB, which is the practical limit. With too
+little memory AI Mode shows "not enough memory" plus what Ollama reported (Search
+keeps working); `./askito doctor` prints Docker's memory, per-container memory,
+the loaded model and Ollama's own memory messages. An older `.env` that still
+names `qwen3.5:9b` (that tag is Q4_K_M) or the plain Q8_0 tag is moved to the new
+default by `./askito up` / `./askito model` (backup in `.env.bak`).
 The first answer after a restart loads about 10 GB from disk: 689 s measured on
 the sandbox with a cold disk cache. The UI shows "Loading the local model…" with
 the elapsed time; the load runs in one shared background request

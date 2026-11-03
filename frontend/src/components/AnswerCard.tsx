@@ -15,6 +15,7 @@ interface AnswerCardProps {
   lastStep?: TraceStep | null; // AI Mode: the agent step in progress
   error?: string | null; // generation failed (results and sources stay)
   errorCode?: string | null;
+  errorReason?: string | null;
   onRetry?: () => void;
 }
 
@@ -50,7 +51,7 @@ function renderWithCitations(answer: string, onCite: (n: number) => void) {
 
 export function AnswerCard({
   answer, mode, timings, onCite, streaming = false, waiting = false, model, cached = false,
-  status = null, lastStep = null, error = null, errorCode = null, onRetry,
+  status = null, lastStep = null, error = null, errorCode = null, errorReason = null, onRetry,
 }: AnswerCardProps) {
   const [copied, setCopied] = useState(false);
   const notFound = !streaming && answer.toLowerCase().includes(strings.results.notFoundPhrase);
@@ -106,6 +107,11 @@ export function AnswerCard({
           <p className="mt-1 text-sm text-content-muted" data-error-code={errorCode ?? undefined}>
             {error}
           </p>
+          {errorReason && (
+            <p className="mt-1 text-xs text-content-muted">
+              {strings.results.errorReason}: {errorReason}
+            </p>
+          )}
           {onRetry && (
             <button
               onClick={onRetry}

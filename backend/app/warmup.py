@@ -21,9 +21,11 @@ log = logging.getLogger("askito.warmup")
 FEATURED_QUERIES = [
     # Checked against the retrieval + evidence path (scripts/suggestion_check.py):
     # every one has passages above the evidence cut-off from on-topic articles.
+    # "How does RAG differ from fine-tuning?" was dropped: in a real AI Mode run the
+    # final passages did not cover fine-tuning and the model abstained.
     "How is the 2025 Physics prize related to quantum computers?",
     "What is the attention mechanism in Transformers?",
-    "How does retrieval-augmented generation differ from fine-tuning a language model?",
+    "What did Hopfield and Hinton contribute to machine learning?",
     "How do AI agents use tools to complete tasks?",
     "How do neural networks learn with backpropagation?",
     "Why do quantum computers need error correction?",

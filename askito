@@ -17,12 +17,31 @@ env_value() { # read KEY from .env (empty if missing)
 
 exec_backend() { "${COMPOSE[@]}" exec -T backend "$@"; }
 
+DEFAULT_MODEL="askito/qwen3.5:9b-q8_0-text"   # Q8_0 weights, text only (see .env.example)
+SOURCE_MODEL="qwen3.5:9b-q8_0"                # registry tag it is created from
+
+# Older .env files pinned earlier project defaults (qwen3.5:9b is Q4_K_M; the plain
+# Q8_0 tag also loads an unused 1 GB vision projector). Move them to the current
+# default; any other value is the user's explicit choice and is left alone.
+migrate_env_model() {
+  [ -f .env ] || return 0
+  local cur; cur="$(env_value LLM_DEFAULT_MODEL)"
+  case "$cur" in
+    qwen3.5:9b|qwen3.5:9b-q8_0|qwen3:30b)
+      cp .env .env.bak
+      sed -i.tmp "s#^LLM_DEFAULT_MODEL=.*#LLM_DEFAULT_MODEL=$DEFAULT_MODEL#" .env && rm -f .env.tmp
+      echo "NOTE: .env LLM_DEFAULT_MODEL was the old default '$cur'; now $DEFAULT_MODEL (backup: .env.bak)"
+      ;;
+  esac
+}
+
 cmd="${1:-help}"
 shift || true
 
 case "$cmd" in
   up)
     [ -f .env ] || { cp .env.example .env; echo "created .env from .env.example"; }
+    migrate_env_model
     "${COMPOSE[@]}" up -d --build
     echo "UI: http://localhost:5173   API: http://localhost:8000/api/health"
     ;;
@@ -30,12 +49,39 @@ case "$cmd" in
   down)     "${COMPOSE[@]}" down ;;
   restart)  "${COMPOSE[@]}" restart backend ;;
   model)
+    migrate_env_model
     model="${1:-$(env_value LLM_DEFAULT_MODEL)}"
-    [ -n "$model" ] || { echo "set LLM_DEFAULT_MODEL in .env (or pass a model tag)"; exit 1; }
-    echo "pulling $model into the ollama container (one-time, several GB)..."
-    "${COMPOSE[@]}" exec -T ollama ollama pull "$model"
-    # show what was actually pulled: weight quantization comes from the manifest
-    "${COMPOSE[@]}" exec -T ollama ollama show "$model" | grep -iE "quantization|parameters"
+    model="${model:-$DEFAULT_MODEL}"
+    source="$(env_value LLM_SOURCE_MODEL)"; source="${source:-$SOURCE_MODEL}"
+    if [ "${model#askito/}" != "$model" ]; then  # askito/... tags are made locally
+      echo "pulling $source into the ollama container (one-time, about 10 GB)..."
+      "${COMPOSE[@]}" exec -T ollama ollama pull "$source"
+      echo "creating the text-only tag $model (same Q8_0 weights, no vision projector)..."
+      exec_backend python scripts/make_text_model.py --source "$source" --target "$model"
+    else
+      echo "pulling $model into the ollama container (one-time, several GB)..."
+      "${COMPOSE[@]}" exec -T ollama ollama pull "$model"
+    fi
+    # show what will be served: weight quantization comes from the GGUF metadata
+    "${COMPOSE[@]}" exec -T ollama ollama show "$model" | grep -iE "quantization|parameters|vision" || true
+    ;;
+  doctor)   # what the AI model needs vs what Docker gives it
+    echo "== model in .env:    $(env_value LLM_DEFAULT_MODEL)"
+    echo "== Docker memory:    $(docker info --format '{{.MemTotal}}' 2>/dev/null | awk '{printf "%.1f GB", $1/1e9}')"
+    echo "   (Q8_0: Ollama needs ~10.6 GB, the backend ~1.1 GB; give Docker >= 14 GB)"
+    echo "== container memory:"
+    docker stats --no-stream --format '   {{.Name}}: {{.MemUsage}}' 2>/dev/null || true
+    echo "== loaded models (ollama ps):"
+    "${COMPOSE[@]}" exec -T ollama ollama ps 2>/dev/null || echo "   ollama container not running"
+    echo "== served model:"
+    "${COMPOSE[@]}" exec -T ollama ollama show "$(env_value LLM_DEFAULT_MODEL)" 2>/dev/null \
+      | grep -iE "quantization|vision|parameters" || echo "   not pulled: run ./askito model"
+    echo "== recent Ollama memory / load messages:"
+    "${COMPOSE[@]}" logs --no-color --tail=2000 ollama 2>/dev/null \
+      | grep -E "system memory|model buffer size|mmproj|out-of-memory|out of memory|terminated|killed|Load failed|llama-server started|requires more" \
+      | tail -n 15 || true
+    echo "== backend health (llm):"
+    curl -s http://localhost:8000/api/health | python3 -c 'import json,sys; d=json.load(sys.stdin); print("  ", json.dumps(d["components"]["llm"]), "\n  ", json.dumps(d.get("llm_model")))' 2>/dev/null || echo "   backend not reachable"
     ;;
   migrate)  exec_backend python -m app.db.migrate ;;
   ingest)   exec_backend python -m app.ingest.run "$@" ;;
@@ -60,7 +106,8 @@ Ask ITO commands
   dev            start with hot reload (vite + uvicorn --reload)
   down           stop all services
   restart        restart the backend (after editing .env)
-  model [name]   pull the LLM into Ollama (default: LLM_DEFAULT_MODEL from .env)
+  model [name]   pull the LLM into Ollama and create the text-only Q8_0 tag
+  doctor         memory / model / Ollama diagnostics (paste this when AI Mode fails)
   setup          first run: migrate + ingest + index
   migrate        apply database migrations
   ingest [--force] fetch the Wikipedia snapshot

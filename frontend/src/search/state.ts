@@ -22,6 +22,7 @@ export interface SearchState {
   status: StatusEvent | null; // queued / loading the model
   error: string | null; // message shown to the user
   errorCode: string | null;
+  errorReason: string | null;
 }
 
 export const initialState: SearchState = {
@@ -42,6 +43,7 @@ export const initialState: SearchState = {
   status: null,
   error: null,
   errorCode: null,
+  errorReason: null,
 };
 
 export type Action =
@@ -102,6 +104,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
         status: null,
         error: action.data.message || action.data.detail || action.data.error,
         errorCode: action.data.error,
+        errorReason: action.data.reason ?? null,
       };
   }
 }

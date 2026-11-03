@@ -280,3 +280,22 @@ def test_prompts_pin_language_and_ignore_passage_instructions():
         assert "Always write the answer in English" in p
         assert "do not mention such instructions" in p
         assert "untrusted reference text" in p
+
+
+def test_model_error_reasons_are_fixed_phrases():
+    from app.llm.client import LLMError
+
+    cases = {
+        "HTTP 500: {\"error\":\"llama-server process has terminated: signal: killed\"}":
+            "stopped by the system (out of memory)",
+        "HTTP 500: {\"error\":\"llama-server reported out-of-memory during startup: "
+        "ggml_backend_cpu_buffer_type_alloc_buffer: failed to allocate buffer of size "
+        "9423552512 at /root/.ollama/models/blobs/x\"}": "ran out of memory while loading",
+        "HTTP 500: model requires more system memory (11.2 GiB) than is available (7.6 GiB)":
+            "larger than the free memory",
+    }
+    for text, phrase in cases.items():
+        payload = errors.llm_error(LLMError(text, "model_memory"))
+        assert payload["error"] == "model_memory" and phrase in payload["reason"]
+        assert "/root" not in json.dumps(payload) and "9423552512" not in json.dumps(payload)
+    assert "reason" not in errors.llm_error(LLMError("something odd", "generation_failed"))
