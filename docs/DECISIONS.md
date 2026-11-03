@@ -286,3 +286,31 @@ surfaces as an error; no request is ever retried on another endpoint.
 
 Parallel BM25 and vector retrieval was not added: BM25 takes ~1 ms in memory,
 so running it concurrently with the query embedding would save at most that.
+
+## ADR-0023: Review remediation — loopback-only policy, Search first, honest metrics
+Follow-up to the independent Fast RAG review
+(`docs/ASK_ITO_FAST_RAG_REVIEW_AND_REMAINING_WORK.md`); details and measurements
+in `docs/ASK_ITO_FAST_RAG_REVIEW_REMEDIATION_REPORT.md`.
+
+- **Local-only means loopback.** `LLM_LOCAL_ONLY=true` accepts only loopback
+  endpoints (http/https, no URL credentials); private-network and LAN
+  addresses are no longer treated as local. Container networks are an explicit,
+  named exception (`LLM_ALLOWED_HOSTS`, set to `ollama` by docker-compose),
+  limited to private addresses. Requests are re-validated and redirects are
+  never followed. Residual risk: DNS rebinding between the check and the
+  connection.
+- **Search first.** On a CPU an answer takes about a minute, so the default
+  mode is `search` (no LLM call) without the reranker (~0.1 s), and answer
+  generation is an explicit user action. Skipping the reranker in Search costs
+  ranking quality (doc Recall@5 0.716 vs 0.784 with bge on 46 questions);
+  `SEARCH_RERANK=true` restores it. Answers keep bge (`ANSWER_RERANK`).
+- **Citation metrics.** "Citation ID validity" (an ID points to a retrieved
+  passage) is reported separately from claim-level support, which is judged
+  offline by a local model and is not a guarantee of correctness.
+- **Evidence cut-off** is documented as a weak out-of-domain heuristic, active
+  only with the reranker it was calibrated for (`EVIDENCE_SCORE_MODEL`).
+- **Hardening.** Cache keys cover every setting that changes results or
+  answers; retrieved passages are delimited and treated as untrusted text;
+  API errors return an error id without internals; at most
+  `MAX_CONCURRENT_GENERATIONS` answers run at once; client disconnects cancel
+  generation.
