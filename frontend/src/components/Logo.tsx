@@ -1,7 +1,5 @@
-// "Ask ITO" wordmark as inline SVG. "Ask" is thin (brand-700); "ITO" is bold
-// with a brand-900 -> brand-500 gradient, and the "O" is the glass of a
-// magnifier. Two sizes: large (home) and small (result header).
-
+// "ASK ITO" wordmark as inline SVG. ASK is thin, ITO is bold,
+// and the O is a magnifying glass. The word gap is intentional.
 interface LogoProps {
   variant?: "large" | "small";
   title?: string;
@@ -12,9 +10,10 @@ const SIZES = {
   small: { w: 150, h: 42 },
 };
 
-export function Logo({ variant = "large", title = "Ask ITO" }: LogoProps) {
+export function Logo({ variant = "large", title = "ASK ITO" }: LogoProps) {
   const { w, h } = SIZES[variant];
   const gradId = `logo-grad-${variant}`;
+
   return (
     <svg
       viewBox="0 0 260 72"
@@ -31,21 +30,22 @@ export function Logo({ variant = "large", title = "Ask ITO" }: LogoProps) {
         </linearGradient>
       </defs>
 
-      {/* "Ask" — thin */}
+      {/* ASK — thin, uppercase */}
       <text
         x="2"
         y="50"
         fontFamily="'Plus Jakarta Sans', Inter, sans-serif"
         fontSize="46"
         fontWeight="300"
+        letterSpacing="-1"
         fill="var(--brand-700)"
       >
-        Ask
+        ASK
       </text>
 
-      {/* "IT" — bold, gradient */}
+      {/* IT — bold; separated from ASK */}
       <text
-        x="104"
+        x="126"
         y="50"
         fontFamily="'Plus Jakarta Sans', Inter, sans-serif"
         fontSize="46"
@@ -55,9 +55,9 @@ export function Logo({ variant = "large", title = "Ask ITO" }: LogoProps) {
         IT
       </text>
 
-      {/* "O" as the magnifier glass + handle */}
+      {/* O — magnifier glass + handle */}
       <circle
-        cx="196"
+        cx="211"
         cy="34"
         r="17"
         fill="none"
@@ -65,9 +65,9 @@ export function Logo({ variant = "large", title = "Ask ITO" }: LogoProps) {
         strokeWidth="9"
       />
       <line
-        x1="209"
+        x1="224"
         y1="47"
-        x2="223"
+        x2="238"
         y2="61"
         stroke={`url(#${gradId})`}
         strokeWidth="9"
