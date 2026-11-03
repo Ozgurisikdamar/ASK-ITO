@@ -53,7 +53,8 @@ def _analyse(llm: _CountingLLM, query: str, trace: list[dict]) -> Analysis:
     analysis = None
     if llm.remaining >= 2:
         with llm_role("analyze"):
-            analysis = call_json(llm, load("analyze").replace("{question}", query), Analysis)
+            analysis = call_json(llm, load("analyze").replace("{question}", query), Analysis,
+                                 cache_role="analyze")
     analysis = analysis or Analysis(qtype="simple", subquestions=[])
     subs = [s for s in analysis.subquestions if s.strip()][: settings.agent_max_subquestions]
     analysis.subquestions = subs
@@ -221,7 +222,7 @@ def _run_agent(
                 counter,
                 load("sufficiency").replace("{question}", query)
                 .replace("{context}", _context_for_sufficiency(candidates)),
-                Sufficiency,
+                Sufficiency, cache_role="sufficiency",
             )
         if suff is None:
             break

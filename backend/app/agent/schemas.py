@@ -36,21 +36,37 @@ def extract_json(raw: str) -> dict | None:
 
 def call_json(
     llm: LLMClient, prompt: str, model_cls: type[BaseModel], retries: int = 1,
-    role: str = "agent", max_tokens: int = 400,
+    role: str = "agent", max_tokens: int = 400, cache_role: str | None = None,
 ):
     """Call the LLM (JSON mode, role model) and validate the output. Returns a
-    model instance or None. Retries once on invalid JSON (spec §6 step 1)."""
+    model instance or None. Retries once on invalid JSON (spec §6 step 1).
+    With `cache_role`, a validated result is served from / stored in the agent
+    tool cache (app.agent.tool_cache) under the full model + prompt key."""
     from app.config import settings
 
-    for _ in range(retries + 1):
-        raw = llm.chat(
-            [{"role": "user", "content": prompt}], temperature=0.0,
-            model=settings.model_for(role), json_mode=True, max_tokens=max_tokens,
-        )
-        obj = extract_json(raw)
-        if obj is not None:
-            try:
-                return model_cls(**obj)
-            except ValidationError:
-                continue
-    return None
+    def compute() -> dict | None:
+        for _ in range(retries + 1):
+            raw = llm.chat(
+                [{"role": "user", "content": prompt}], temperature=0.0,
+                model=settings.model_for(role), json_mode=True, max_tokens=max_tokens,
+            )
+            obj = extract_json(raw)
+            if obj is not None:
+                try:
+                    return model_cls(**obj).model_dump()
+                except ValidationError:
+                    continue
+        return None
+
+    if cache_role is None:
+        data = compute()
+    else:
+        from app.agent import tool_cache
+
+        data, _hit = tool_cache.get_or_call(cache_role, role, prompt, max_tokens, compute)
+    if data is None:
+        return None
+    try:
+        return model_cls(**data)
+    except (TypeError, ValidationError):
+        return None

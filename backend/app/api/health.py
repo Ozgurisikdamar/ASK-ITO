@@ -123,6 +123,24 @@ def _check_llm() -> dict:
     }
 
 
+def _served_model() -> dict | None:
+    """The answer model's tag, weight quantization and digest (None if unknown)."""
+    if settings.llm_mode == "mock":
+        return None
+    from app.llm.identity import served_model
+
+    return served_model("answer")
+
+
+def _check_redis() -> dict:
+    """Optional local L2 cache: "disabled", "ok" or "unavailable" (falls back)."""
+    from app.redis_cache import cache
+
+    st = cache.status()
+    status = "disabled" if not st["enabled"] else ("ok" if st["available"] else "unavailable")
+    return {"status": status, **st}
+
+
 @router.get("/health")
 def health() -> dict:
     components = {
@@ -132,6 +150,7 @@ def health() -> dict:
         "reranker": _check_reranker(),
         "ragas": _check_ragas(),
         "llm": _check_llm(),
+        "redis": _check_redis(),
     }
     overall = "ok" if components["db"]["status"] in {"ok", "empty"} else "degraded"
     corpus = {
@@ -143,6 +162,7 @@ def health() -> dict:
 
     return {
         "status": overall, "components": components, "corpus": corpus,
+        "llm_model": _served_model(),
         "warmup": {"status": state["status"], "steps": state["steps"],
                    "error": state["error"], "prewarm": state["prewarm"]},
         "default_mode": settings.default_mode,

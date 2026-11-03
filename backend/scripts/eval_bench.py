@@ -209,6 +209,10 @@ def main() -> None:
     os.environ["WARMUP_ON_START"] = "false"
     os.environ["PREWARM_FEATURED"] = "false"
     os.environ["ANSWER_CACHE_ENABLED"] = "false"
+    # measure real work: no embedding / agent-tool / Redis cache hits between runs
+    os.environ["EMBEDDING_CACHE_SIZE"] = "0"
+    os.environ["AGENT_TOOL_CACHE"] = "false"
+    os.environ["REDIS_ENABLED"] = "false"
     os.environ.setdefault("LLM_MODE", "ollama")
     os.environ.setdefault("LLM_BASE_URL", "http://127.0.0.1:11434")
     if args.model:

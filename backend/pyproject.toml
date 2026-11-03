@@ -11,6 +11,7 @@ dependencies = [
     "psycopg[binary]>=3.2,<4",
     "httpx>=0.27,<0.29",
     "PyYAML>=6.0,<7",
+    "redis>=5,<7",  # optional local cache client; only used when REDIS_ENABLED=true
 ]
 
 # Retrieval / embedding dependencies (M3). Install CPU torch from the PyTorch

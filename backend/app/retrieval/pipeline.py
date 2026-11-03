@@ -15,7 +15,7 @@ from dataclasses import asdict, dataclass, field
 
 from app.config import settings
 from app.index.bm25_index import index_version
-from app.index.embed import embed_query
+from app.index.embed import embed_query_ex
 from app.retrieval.search import bm25_search, rrf_fuse, vector_search
 from app.retrieval.store import store
 
@@ -74,6 +74,8 @@ class PipelineResult:
     ranked: list[tuple[int, float]] = field(default_factory=list)  # pre-diversity
     cached: bool = False
     counts: dict = field(default_factory=dict)  # candidates per stage (metrics only)
+    cache_tier: str | None = None  # "l1" (in-process) | "l2" (Redis) when cached
+    embedding_source: str | None = None  # "l1" | "l2" | "model" (query embedding)
 
     def trace_dicts(self) -> list[dict]:
         return [asdict(s) for s in self.trace]
@@ -95,6 +97,7 @@ class Candidates:
     timings: dict[str, int]
     eff_query: str
     rewritten: str | None
+    embedding_source: str | None = None
 
 
 def candidates(query: str, mode: str, domain: str | None = None) -> Candidates:
@@ -106,6 +109,7 @@ def candidates(query: str, mode: str, domain: str | None = None) -> Candidates:
     timings: dict[str, int] = {}
     rewritten = None
     eff_query = query
+    emb_src = None
 
     if mode == "hybrid_rerank_rewrite":
         from app.agent.rewrite import rewrite_query
@@ -127,7 +131,7 @@ def candidates(query: str, mode: str, domain: str | None = None) -> Candidates:
         timings["bm25"] = t.ms
     elif mode == "vector":
         with _Timer() as t:
-            emb = embed_query(eff_query)
+            emb, emb_src = embed_query_ex(eff_query)
         timings["embedding"] = t.ms
         with _Timer() as t:
             fused = vector_search(eff_query, k_vec, domain=domain, embedding=emb)
@@ -141,7 +145,7 @@ def candidates(query: str, mode: str, domain: str | None = None) -> Candidates:
         trace.append(_step("bm25", t.ms, bm))
         timings["bm25"] = t.ms
         with _Timer() as t:
-            emb = embed_query(eff_query)  # computed once per query
+            emb, emb_src = embed_query_ex(eff_query)  # once per query (L1/L2 cached)
         timings["embedding"] = t.ms
         with _Timer() as t:
             vec = vector_search(eff_query, k_vec, domain=domain, embedding=emb)
@@ -151,7 +155,7 @@ def candidates(query: str, mode: str, domain: str | None = None) -> Candidates:
             fused = rrf_fuse([bm, vec])
         trace.append(_step("rrf", t.ms, fused[: settings.results_max]))
         timings["rrf"] = t.ms
-    return Candidates(fused, trace, timings, eff_query, rewritten)
+    return Candidates(fused, trace, timings, eff_query, rewritten, emb_src)
 
 
 def rerank_stage(
@@ -196,6 +200,7 @@ def ranked_keep() -> int:
 # -- result cache -----------------------------------------------------------
 _cache: OrderedDict[tuple, PipelineResult] = OrderedDict()
 _cache_lock = threading.Lock()
+RETRIEVAL_CACHE_VERSION = "1"  # bump when PipelineResult's stored shape changes
 
 
 def retrieval_fingerprint(mode: str) -> tuple:
@@ -217,31 +222,87 @@ def _cache_key(query: str, mode: str, domain: str | None, final_k: int) -> tuple
             retrieval_fingerprint(mode))
 
 
-def cache_clear() -> None:
+def cache_clear(include_redis: bool = False) -> None:
+    """Empty the in-process L1; with include_redis, also this app's Redis
+    retrieval keys (normally unnecessary: keys are versioned and expire)."""
     with _cache_lock:
         _cache.clear()
+    if include_redis:
+        from app.redis_cache import cache
+
+        cache.clear("ret")
+
+
+def _redis_key(key: tuple) -> str:
+    from app.redis_cache import hash_key
+
+    return hash_key(("ret", RETRIEVAL_CACHE_VERSION, key))
+
+
+def _to_json(result: PipelineResult) -> dict:
+    d = asdict(result)
+    d.pop("cached", None)
+    d.pop("cache_tier", None)
+    return d
+
+
+def _from_json(d: dict) -> PipelineResult:
+    return PipelineResult(
+        mode=d["mode"],
+        final=[(int(c), float(s)) for c, s in d["final"]],
+        trace=[RetrievalStep(**t) for t in d["trace"]],
+        rewritten_query=d.get("rewritten_query"),
+        timings=dict(d.get("timings") or {}),
+        ranked=[(int(c), float(s)) for c, s in d.get("ranked") or []],
+        counts=dict(d.get("counts") or {}),
+        embedding_source=d.get("embedding_source"),
+    )
+
+
+def _l1_put(key: tuple, result: PipelineResult) -> None:
+    with _cache_lock:
+        _cache[key] = result
+        _cache.move_to_end(key)
+        while len(_cache) > settings.retrieval_cache_size:
+            _cache.popitem(last=False)
 
 
 def cache_get(query: str, mode: str, domain: str | None, final_k: int) -> PipelineResult | None:
-    if settings.retrieval_cache_size <= 0:
+    """L1 (in-process LRU) first, then L2 (local Redis, when enabled). Cached
+    results hold chunk ids and scores only; text is hydrated from the current
+    chunk store, and the key carries the index version and retrieval settings."""
+    if settings.retrieval_cache_size <= 0 and not settings.redis_enabled:
         return None
     key = _cache_key(query, mode, domain, final_k)
-    with _cache_lock:
-        hit = _cache.get(key)
-        if hit is None:
-            return None
-        _cache.move_to_end(key)
-    return PipelineResult(**{**hit.__dict__, "cached": True})
+    if settings.retrieval_cache_size > 0:
+        with _cache_lock:
+            hit = _cache.get(key)
+            if hit is not None:
+                _cache.move_to_end(key)
+                return PipelineResult(**{**hit.__dict__, "cached": True, "cache_tier": "l1"})
+    from app.redis_cache import cache
+
+    data = cache.get_json("ret", _redis_key(key))
+    if data is None:
+        return None
+    try:
+        result = _from_json(data)
+    except (KeyError, TypeError, ValueError):
+        return None
+    if settings.retrieval_cache_size > 0:
+        _l1_put(key, result)
+    return PipelineResult(**{**result.__dict__, "cached": True, "cache_tier": "l2"})
 
 
 def cache_put(query: str, mode: str, domain: str | None, final_k: int,
               result: PipelineResult) -> None:
-    if settings.retrieval_cache_size <= 0:
-        return
-    with _cache_lock:
-        _cache[_cache_key(query, mode, domain, final_k)] = result
-        while len(_cache) > settings.retrieval_cache_size:
-            _cache.popitem(last=False)
+    key = _cache_key(query, mode, domain, final_k)
+    if settings.retrieval_cache_size > 0:
+        _l1_put(key, result)
+    from app.redis_cache import cache
+
+    if cache.enabled:
+        cache.set_json("ret", _redis_key(key), _to_json(result))
 
 
 def run_retrieval(
@@ -274,7 +335,7 @@ def run_retrieval(
               if uses_reranker(mode) else 0}
     result = PipelineResult(
         mode, final, trace, cand.rewritten, timings, ranked=ranked[:ranked_keep()],
-        counts=counts,
+        counts=counts, embedding_source=cand.embedding_source,
     )
     if use_cache:
         cache_put(query, mode, domain, final_k, result)

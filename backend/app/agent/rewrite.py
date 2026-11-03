@@ -15,15 +15,21 @@ def rewrite_query(query: str, llm: LLMClient | None = None) -> str:
     from app.config import settings
     from app.llm.metrics import instrumented, llm_role
 
+    from app.agent import tool_cache
+
     llm = instrumented(llm or get_llm_client())
     prompt = load("rewrite").replace("{question}", query)
-    try:
+
+    def compute() -> str | None:
         with llm_role("rewrite"):
             raw = llm.chat(
                 [{"role": "user", "content": prompt}], temperature=0.0,
                 model=settings.model_for("agent"), json_mode=True, max_tokens=120,
             )
-        rewritten = _parse(raw)
+        return _parse(raw)
+
+    try:
+        rewritten, _hit = tool_cache.get_or_call("rewrite", "agent", prompt, 120, compute)
         return rewritten or query
     except Exception as exc:  # noqa: BLE001  (rewriting is optional: search the original)
         log.warning("query rewrite failed (%s: %s); searching the original query",

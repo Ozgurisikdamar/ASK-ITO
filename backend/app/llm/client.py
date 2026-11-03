@@ -179,21 +179,48 @@ class OllamaClient(_HTTPClient):
         super().__init__(base, api_key)
         self.default_model = default_model
         self._no_think_field: set[str] = set()  # models that reject the `think` field
-        self._caps: dict[str, list[str] | None] = {}
+        self._show_cache: dict[str, tuple[float, dict | None]] = {}
         self.last_usage: dict = {}
         self.context_overflows = 0
 
+    def _show(self, model: str) -> dict | None:
+        """/api/show for a model (cached; a failure is retried after 30 s)."""
+        hit = self._show_cache.get(model)
+        if hit is not None and (hit[1] is not None or time.monotonic() - hit[0] < 30):
+            return hit[1]
+        try:
+            resp = self._http.post(f"{self.base_url}/api/show", json={"model": model},
+                                   timeout=settings.llm_ping_timeout_s * 5)
+            data = resp.json() if resp.status_code == 200 else None
+        except Exception:  # noqa: BLE001
+            data = None
+        self._show_cache[model] = (time.monotonic(), data)
+        return data
+
     def capabilities(self, model: str) -> list[str] | None:
         """Model capabilities from /api/show (cached); None if unknown."""
-        if model not in self._caps:
-            try:
-                resp = self._http.post(f"{self.base_url}/api/show", json={"model": model},
-                                       timeout=settings.llm_ping_timeout_s * 5)
-                self._caps[model] = resp.json().get("capabilities") if resp.status_code == 200 \
-                    else None
-            except Exception:  # noqa: BLE001
-                self._caps[model] = None
-        return self._caps[model]
+        data = self._show(model)
+        return data.get("capabilities") if data else None
+
+    def model_identity(self, model: str) -> dict:
+        """What is actually served under a tag: weight quantization (from the
+        GGUF metadata Ollama reports), parameter size, family and the local
+        manifest digest. Unknown fields are None (Ollama unreachable)."""
+        model = self._model(model)
+        data = self._show(model) or {}
+        details = data.get("details") or {}
+        digest = None
+        try:
+            resp = self._http.get(f"{self.base_url}/api/tags",
+                                  timeout=settings.llm_ping_timeout_s * 5)
+            for m in resp.json().get("models", []) if resp.status_code == 200 else []:
+                if m.get("name") == model or m.get("model") == model:
+                    digest = m.get("digest")
+        except Exception:  # noqa: BLE001
+            pass
+        return {"name": model, "quantization": details.get("quantization_level"),
+                "parameter_size": details.get("parameter_size"),
+                "family": details.get("family"), "digest": digest}
 
     def _record_usage(self, data: dict, body: dict) -> None:
         opts = body.get("options", {})

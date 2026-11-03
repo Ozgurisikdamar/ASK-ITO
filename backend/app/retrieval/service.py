@@ -140,7 +140,8 @@ def run_search(
     timings["answer"] = answer_ms
     timings["total"] = int((time.perf_counter() - t0) * 1000)
     metrics = request_metrics(mode, timings, rec, result.counts, len(sources),
-                              cached=result.cached)
+                              cached=result.cached, cache_tier=result.cache_tier,
+                              embedding_source=result.embedding_source)
     log_request(mode, metrics)
 
     return {
@@ -158,7 +159,8 @@ def run_search(
 
 
 def request_metrics(mode: str, timings: dict, rec, counts: dict, context_chunks: int,
-                    cached: bool = False) -> dict:
+                    cached: bool = False, cache_tier: str | None = None,
+                    embedding_source: str | None = None) -> dict:
     """Per-request observability object (timings, LLM calls, candidate counts)."""
     stages = ("embedding", "bm25", "vector", "rrf", "rerank", "rewrite")
     return {
@@ -170,6 +172,10 @@ def request_metrics(mode: str, timings: dict, rec, counts: dict, context_chunks:
         "llm": rec.summary(),
         "candidates": {**counts, "context_chunks": context_chunks},
         "retrieval_cached": cached,
+        # where the work came from: retrieval "l1" | "l2" (Redis) | None (computed);
+        # query embedding "l1" | "l2" | "model"
+        "cache": {"retrieval": cache_tier if cached else None,
+                  "embedding": embedding_source},
         "models": model_info(mode),
         "evidence": evidence_info(mode, context_chunks),
     }

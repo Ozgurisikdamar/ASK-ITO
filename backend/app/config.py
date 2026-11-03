@@ -95,7 +95,30 @@ class Settings(BaseSettings):
     torch_threads: int = 0  # 0 = all CPU cores
     max_chunks_per_doc: int = 2
     results_max: int = 50  # ranked results kept for the results list / pagination
-    retrieval_cache_size: int = 512
+    retrieval_cache_size: int = 512  # in-process L1 (Redis, when enabled, is the L2)
+    embedding_cache_size: int = 1024  # in-process query-embedding LRU (0 = off)
+
+    # Optional local Redis: shared L2 for the embedding, retrieval, answer and agent
+    # tool caches (app.redis_cache). Off by default; local only (loopback, or a
+    # hostname in REDIS_ALLOWED_HOSTS — docker-compose sets "redis"). Unreachable
+    # Redis = warning + fallback to the in-process / PostgreSQL caches, unless
+    # REDIS_STRICT=true. Never holds model KV tensors (that is Ollama's job).
+    redis_enabled: bool = False
+    redis_url: str = "redis://localhost:6379/0"
+    redis_allowed_hosts: str = ""
+    redis_strict: bool = False
+    redis_timeout_s: float = 0.25
+    redis_retry_s: float = 30.0  # circuit-breaker pause after a failure
+    redis_max_value_bytes: int = 1_000_000
+    redis_ttl_embedding_s: int = 7 * 24 * 3600
+    redis_ttl_retrieval_s: int = 24 * 3600
+    redis_ttl_answer_s: int = 24 * 3600
+    redis_ttl_tool_s: int = 3600  # agent rewrite/sufficiency results
+    # Redis front cache for the PostgreSQL answer cache (PG stays the durable store)
+    redis_answer_front_cache: bool = True
+    # Cache deterministic agent LLM tool calls (rewrite, sufficiency) by complete
+    # model + prompt + input key; only at temperature 0 / think off.
+    agent_tool_cache: bool = True
     agent_max_rounds: int = 3
     agent_max_llm_calls: int = 10
     agent_timeout_s: int = 180

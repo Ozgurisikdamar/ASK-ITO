@@ -58,6 +58,8 @@ def produce(q: str, mode: str, domain: str, cancel: threading.Event):
                     "context_ms": timings.get("context"),
                     "generation_ms": timings.get("answer"),
                     "llm": rec.summary(), "answer_cached": bool(data.get("cached")),
+                    # "redis" | "pg" | "fresh" (generated now) | None (no answer)
+                    "answer_cache": data.get("answer_cache"),
                     "models": service.model_info(mode) if mode != "agentic" else
                     {"llm": settings.model_for("answer"), "reranker": settings.reranker_model,
                      "embedding": settings.embedding_model},
@@ -94,7 +96,7 @@ def _produce(q: str, mode: str, domain: str, cancel: threading.Event):
         results = service.results_payload(ranked, q)
         timings["retrieval"] = _ms(t0)
         yield "results", {"results": results, "total": len(results), "stage": "final",
-                          "timings": timings, "cached": True}
+                          "timings": timings, "cached": True, "cache_tier": cached.cache_tier}
     else:
         cand = pipeline.candidates(q, mode, domain)
         timings.update(cand.timings)
@@ -116,7 +118,8 @@ def _produce(q: str, mode: str, domain: str, cancel: threading.Event):
         pipeline.cache_put(q, mode, domain, k, pipeline.PipelineResult(
             mode, final, cand.trace, cand.rewritten, dict(timings),
             ranked=ranked[: pipeline.ranked_keep()],
-            counts={"fused": len(cand.fused), "final": len(final), "reranked": n_reranked}))
+            counts={"fused": len(cand.fused), "final": len(final), "reranked": n_reranked},
+            embedding_source=cand.embedding_source))
 
     if cancel.is_set():
         return
@@ -132,12 +135,13 @@ def _produce(q: str, mode: str, domain: str, cancel: threading.Event):
                        "reranker": service.model_info(mode)["reranker"]}
         return
 
-    hit = answer_cache.get(q, mode, domain)
+    hit = answer_cache.get(q, mode, domain, source_ids=[s.chunk_id for s in sources])
     if hit is not None:
         timings["total"] = _ms(t0)
         yield "token", {"t": hit["answer"]}
         yield "done", {"answer": hit["answer"], "citations": hit["citations"],
                        "timings": timings, "cached": True, "mode": mode,
+                       "answer_cache": hit.get("cache_kind"),
                        "model": settings.model_for("answer") if sources else None,
                        "reranker": service.model_info(mode)["reranker"],
                        "abstained": not sources}
@@ -157,6 +161,7 @@ def _produce(q: str, mode: str, domain: str, cancel: threading.Event):
             answer_cache.put(q, mode, domain, payload["answer"], payload["citations"],
                              [s.chunk_id for s in sources])
             yield "done", {**payload, "timings": timings, "cached": False, "mode": mode,
+                           "answer_cache": "fresh",
                            "model": settings.model_for("answer") if sources else None,
                            "reranker": service.model_info(mode)["reranker"],
                            "abstained": not sources}

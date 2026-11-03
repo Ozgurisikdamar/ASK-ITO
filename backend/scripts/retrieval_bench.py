@@ -52,6 +52,9 @@ def main() -> None:
             os.environ[env] = str(val)
     os.environ.setdefault("LLM_MODE", "mock")
     os.environ["WARMUP_ON_START"] = "false"
+    # measure real work: no query-embedding / Redis cache hits between repetitions
+    os.environ.setdefault("EMBEDDING_CACHE_SIZE", "0")
+    os.environ.setdefault("REDIS_ENABLED", "false")
     overrides = {}
     for kv in args.set:
         key, _, val = kv.partition("=")
