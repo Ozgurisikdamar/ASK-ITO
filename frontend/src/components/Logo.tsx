@@ -1,5 +1,6 @@
 // "ASK ITO" wordmark as inline SVG. ASK is thin, ITO is bold,
-// and the O is a magnifying glass. The word gap is intentional.
+// and the O is a magnifying glass. ASK/ITO are separated, while IT and
+// the magnifier-O are intentionally close together.
 interface LogoProps {
   variant?: "large" | "small";
   title?: string;
@@ -43,7 +44,7 @@ export function Logo({ variant = "large", title = "ASK ITO" }: LogoProps) {
         ASK
       </text>
 
-      {/* IT — bold; separated from ASK */}
+      {/* IT — bold; distinct from ASK */}
       <text
         x="126"
         y="50"
@@ -55,9 +56,9 @@ export function Logo({ variant = "large", title = "ASK ITO" }: LogoProps) {
         IT
       </text>
 
-      {/* O — magnifier glass + handle */}
+      {/* O — magnifier glass. Shifted left to close the IT–O gap. */}
       <circle
-        cx="211"
+        cx="199"
         cy="34"
         r="17"
         fill="none"
@@ -65,9 +66,9 @@ export function Logo({ variant = "large", title = "ASK ITO" }: LogoProps) {
         strokeWidth="9"
       />
       <line
-        x1="224"
+        x1="212"
         y1="47"
-        x2="238"
+        x2="226"
         y2="61"
         stroke={`url(#${gradId})`}
         strokeWidth="9"
