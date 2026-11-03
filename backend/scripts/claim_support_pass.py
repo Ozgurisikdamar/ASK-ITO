@@ -25,6 +25,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--labels", required=True)
     ap.add_argument("--judge", required=True, help="local judge model (Ollama tag)")
+    ap.add_argument("--rep", type=int, default=1, help="repetition to judge (0 = all)")
     ap.add_argument("--context-chars", type=int, default=0,
                     help="passage cap (default: OVERVIEW_CONTEXT_CHARS)")
     args = ap.parse_args()
@@ -50,6 +51,8 @@ def main() -> None:
     work = []
     for label in labels:
         for u in Checkpoint(CHECKPOINT_DIR / f"eval_{label}.jsonl").units():
+            if args.rep and u.get("rep") != args.rep:
+                continue
             work.append((label, u))
     ck.header(benchmark="claim_support", judge=ollama_info(settings.llm_base_url, args.judge),
               labels=labels, planned_units=len(work), context_chars=chars)

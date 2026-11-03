@@ -46,6 +46,9 @@ def parse() -> argparse.Namespace:
     ap.add_argument("--reps", type=int, default=1)
     ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE")
     ap.add_argument("--max-questions", type=int, default=0, help="debug: stop after N units")
+    ap.add_argument("--stream", action="store_true",
+                    help="overview mode only: run through the SSE endpoint code "
+                         "(app.api.stream.produce) to record time to first token")
     return ap.parse_args()
 
 
@@ -285,7 +288,31 @@ def main() -> None:
         warm["llm_first_call_load_ms"] = llm.calls[-1].get("load_ms")
     llm.reset()
 
+    def answer_streamed(q: dict) -> dict:
+        import threading
+
+        from app.api import stream as stream_api
+
+        events = list(stream_api.produce(q["question"], args.mode, "all", threading.Event()))
+        if events[-1][0] == "error":
+            raise RuntimeError(events[-1][1].get("error", "stream error"))
+        done = events[-1][1]
+        ranked = next((d["results"] for e, d in reversed(events) if e in ("reranked", "results")),
+                      [])
+        sources = next((d["sources"] for e, d in events if e == "sources"), [])
+        for c in done["metrics"]["llm"].get("detail", []):  # per-call records -> proxy format
+            llm.calls.append({"role": c.get("role"), "model": c.get("model"), "ms": c.get("ms"),
+                              "ttft_ms": c.get("ttft_ms"),
+                              **{k: c.get(k) for k in ("prompt_tokens", "completion_tokens",
+                                                      "prompt_eval_ms", "eval_ms", "load_ms")}})
+        return {"answer": done["answer"] or "", "citations": done.get("citations", []),
+                "sources": sources, "ranked_chunk_ids": [r["chunk_id"] for r in ranked],
+                "timings": done.get("timings", {}), "llm_calls": done["metrics"]["llm"]["calls"],
+                "trace": []}
+
     def answer(q: dict) -> dict:
+        if args.stream:
+            return answer_streamed(q)
         if args.mode == "agentic":
             from app.agent.loop import run_agent
 

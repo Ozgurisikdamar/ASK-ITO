@@ -42,9 +42,32 @@ def load_probes() -> list[dict]:
              "domain": p.get("kind")} for p in data["questions"]]
 
 
+QUALITY_PATH = Path(__file__).resolve().parents[1] / "eval" / "answer_quality_set.json"
+
+
+def load_quality(conn) -> list[dict]:
+    """eval/answer_quality_set.json with expected document titles resolved to ids."""
+    data = json.loads(QUALITY_PATH.read_text())
+    titles = {r[1]: int(r[0]) for r in conn.execute("SELECT id, title FROM documents")}
+    out = []
+    for q in data["questions"]:
+        missing = [t for t in q["expected_docs"] if t not in titles]
+        if missing:
+            raise RuntimeError(f"{q['id']}: unknown expected docs {missing}")
+        out.append({"id": q["id"], "question": q["question"], "reference": None,
+                    "gold_chunk_ids": set(),
+                    "gold_doc_ids": {titles[t] for t in q["expected_docs"]},
+                    "qtype": q["category"] if q["answerable"] else "unanswerable",
+                    "category": q["category"], "answerable": q["answerable"],
+                    "domain": None})
+    return out
+
+
 def load_questions(conn, name: str | None) -> list[dict]:
     if name == "probes":
         return load_probes()
+    if name == "quality":
+        return load_quality(conn)
     qs = all_questions(conn)
     if not name or name == "all":
         return qs

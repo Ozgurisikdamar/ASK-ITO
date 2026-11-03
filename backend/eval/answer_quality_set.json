@@ -1,0 +1,19 @@
+{
+  "description": "Compact, balanced answer-quality set (2 questions per category). expected_docs are document titles in the corpus that contain the answer (empty when any relevant document will do); answerable=false questions must get the not-found answer. Unanswerable answers were verified absent by keyword search over all chunks when the file was created.",
+  "questions": [
+    {"id": "aq-fact-1", "category": "direct_fact", "answerable": true, "question": "What is retrieval-augmented generation?", "expected_docs": ["Retrieval-augmented generation"]},
+    {"id": "aq-fact-2", "category": "direct_fact", "answerable": true, "question": "What problem does Shor's algorithm solve?", "expected_docs": ["Shor's algorithm"]},
+    {"id": "aq-broad-1", "category": "broad_synthesis", "answerable": true, "question": "What are the main applications of generative AI?", "expected_docs": ["Generative AI"]},
+    {"id": "aq-broad-2", "category": "broad_synthesis", "answerable": true, "question": "What are the main physical approaches to building qubits?", "expected_docs": ["Qubit", "Quantum computing", "Superconducting quantum computing"]},
+    {"id": "aq-multi-1", "category": "multi_chunk", "answerable": true, "question": "Who shared the 2024 Nobel Prize in Chemistry and what was each part of the prize for?", "expected_docs": ["Demis Hassabis", "David Baker (biochemist)", "AlphaFold"]},
+    {"id": "aq-multi-2", "category": "multi_chunk", "answerable": true, "question": "Who won the 2023 Nobel Prize in Physics and what is attosecond physics?", "expected_docs": ["Pierre Agostini", "Anne L'Huillier", "Attosecond physics"]},
+    {"id": "aq-para-1", "category": "paraphrase", "answerable": true, "question": "Which kind of superconducting circuit element serves as the basic qubit of Google's Willow chip?", "expected_docs": ["Transmon"]},
+    {"id": "aq-para-2", "category": "paraphrase", "answerable": true, "question": "Which two scientists' work on modified mRNA made COVID-19 vaccines possible and earned them a Nobel Prize?", "expected_docs": ["Katalin Karikó", "Drew Weissman"]},
+    {"id": "aq-amb-1", "category": "ambiguous", "answerable": true, "question": "Transformers", "expected_docs": ["Transformer (deep learning)"]},
+    {"id": "aq-amb-2", "category": "ambiguous", "answerable": true, "question": "Who won the Nobel Prize in Physics?", "expected_docs": []},
+    {"id": "aq-near-1", "category": "near_domain_unsupported", "answerable": false, "question": "What did Annie Ernaux win the Nobel Prize in Literature for?", "expected_docs": []},
+    {"id": "aq-near-2", "category": "near_domain_unsupported", "answerable": false, "question": "What is the name of Geoffrey Hinton's dog?", "expected_docs": []},
+    {"id": "aq-ood-1", "category": "out_of_domain", "answerable": false, "question": "How do I fix a flat tire on a bicycle?", "expected_docs": []},
+    {"id": "aq-ood-2", "category": "out_of_domain", "answerable": false, "question": "What is a good recipe for banana bread?", "expected_docs": []}
+  ]
+}
