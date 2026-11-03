@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app.api import eval as eval_api, health, search, stream, suggest
 from app.config import settings
 from app.db.connection import close_pool
+from app.observability import RequestIdMiddleware, setup_logging
 
 
 @asynccontextmanager
@@ -19,6 +20,7 @@ async def lifespan(_app: FastAPI):
     from app.eval.jobs import mark_interrupted
     from app.warmup import start_background
 
+    setup_logging(settings.log_level)
     start_background()  # load models/indexes + pre-warm featured answers, off the request path
     # evaluation runs cut short by a restart are marked as such (not "running" forever)
     threading.Thread(target=mark_interrupted, name="eval-cleanup", daemon=True).start()
@@ -34,7 +36,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
+# outermost: every response (errors and CORS preflights included) gets an id
+app.add_middleware(RequestIdMiddleware)
 
 @app.exception_handler(Exception)
 async def unhandled_error(_request: Request, exc: Exception):

@@ -32,6 +32,7 @@ from app.agent.answer import stream_answer
 from app.api.errors import generation_limiter, llm_error, needs_generation, safe_error
 from app.llm.client import LLMError, get_llm_client
 from app.config import settings
+from app.observability import current_id
 from app.llm.metrics import log_request, recording
 from app.retrieval import answer_cache, pipeline, service
 from app.warmup import activity
@@ -401,7 +402,7 @@ def search_stream(
                                  "detail": f"mode must be one of {valid}; domain one of {DOMAINS}"})
         return StreamingResponse(bad(), media_type="text/event-stream")
     return StreamingResponse(
-        event_stream(q, mode, domain, uuid.uuid4().hex[:12]),
+        event_stream(q, mode, domain, current_id()),  # = the X-Request-ID header
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

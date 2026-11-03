@@ -167,6 +167,8 @@ class Settings(BaseSettings):
     # Fast path: "search" (default) = hybrid retrieval, ranked sources, no LLM call;
     # "overview" = Answer: retrieval + rerank + exactly one LLM call (opt-in in the UI).
     default_mode: str = "search"
+    # askito.* log lines (one per request: timings and counts, no question text)
+    log_level: str = "INFO"
     # Cross-encoder stage per fast mode. Search defaults to off so results come back
     # in ~0.1 s on a CPU; Answer keeps the bge reranker (context quality + evidence
     # cut-off). FAST_RERANK, if set, overrides both (backward compatibility).
