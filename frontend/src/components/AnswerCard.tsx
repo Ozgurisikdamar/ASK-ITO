@@ -81,7 +81,6 @@ export function AnswerCard({
           <p className="text-sm text-content-muted">{strings.results.generating}</p>
           <div className="h-3 w-11/12 animate-pulse rounded bg-mauve-200" />
           <div className="h-3 w-9/12 animate-pulse rounded bg-mauve-200" />
-          <p className="text-xs text-content-muted">{strings.results.cpuNote}</p>
         </div>
       ) : (
         <p className="whitespace-pre-wrap leading-relaxed text-content">

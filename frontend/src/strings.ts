@@ -40,7 +40,6 @@ export const strings = {
   results: {
     overview: "AI Overview",
     generating: "Generating an AI overview from the sources…",
-    cpuNote: "Running on a local model — the first words can take a little while.",
     cached: "cached answer",
     cachedResults: "cached results",
     webResults: "Results",
