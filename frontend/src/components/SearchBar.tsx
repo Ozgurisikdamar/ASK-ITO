@@ -7,6 +7,8 @@ interface SearchBarProps {
   onSubmit: () => void;
   size?: "lg" | "md";
   autoFocus?: boolean;
+  aiMode?: boolean; // AI Mode on: the query gets a grounded AI answer
+  onToggleAi?: () => void; // shows the AI Mode toggle inside the bar
 }
 
 export function SearchBar({
@@ -15,6 +17,8 @@ export function SearchBar({
   onSubmit,
   size = "lg",
   autoFocus = false,
+  aiMode = false,
+  onToggleAi,
 }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -39,7 +43,11 @@ export function SearchBar({
     if (value.trim()) onSubmit();
   }
 
-  const pad = size === "lg" ? "py-4 pl-14 pr-28 text-lg" : "py-2.5 pl-11 pr-24 text-base";
+  const toggle = onToggleAi !== undefined;
+  const pad =
+    size === "lg"
+      ? `py-4 pl-14 ${toggle ? "pr-56" : "pr-28"} text-lg`
+      : `py-2.5 pl-11 ${toggle ? "pr-48" : "pr-24"} text-base`;
   const iconLeft = size === "lg" ? "left-5" : "left-4";
 
   return (
@@ -71,13 +79,32 @@ export function SearchBar({
         aria-label={strings.searchAria}
         className={`w-full rounded-full border border-mauve-200 bg-surface-raised ${pad} text-content shadow-sm placeholder:text-content-muted focus:border-brand-500`}
       />
-      <button
-        type="submit"
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-brand-700 px-5 py-2 font-medium text-white hover:opacity-90 disabled:opacity-40"
-        disabled={!value.trim()}
-      >
-        {strings.submit}
-      </button>
+      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
+        {toggle && (
+          <button
+            type="button"
+            onClick={onToggleAi}
+            aria-pressed={aiMode}
+            title={strings.aiModeHint}
+            className={
+              "flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors " +
+              (aiMode
+                ? "bg-brand-700/10 text-brand-700 ring-1 ring-brand-500 dark:text-brand-300"
+                : "text-content-muted hover:bg-mauve-200 hover:text-content")
+            }
+          >
+            <span aria-hidden="true">✦</span>
+            {strings.modes.aiMode}
+          </button>
+        )}
+        <button
+          type="submit"
+          className="rounded-full bg-brand-700 px-5 py-2 font-medium text-white hover:opacity-90 disabled:opacity-40"
+          disabled={!value.trim()}
+        >
+          {aiMode ? strings.ask : strings.submit}
+        </button>
+      </div>
     </form>
   );
 }

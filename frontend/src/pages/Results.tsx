@@ -8,14 +8,12 @@ import { OrganicResult } from "../components/OrganicResult";
 import { SourceCard } from "../components/SourceCard";
 import { TracePanel } from "../components/TracePanel";
 import { LatencyBreakdown } from "../components/LatencyBreakdown";
-import { AnswerPrompt } from "../components/AnswerPrompt";
 import { CorpusScope } from "../components/CorpusScope";
-import { getAutoAnswer, setAutoAnswer } from "../prefs";
 import { openSearchStream } from "../api/client";
 import { initialState, reducer } from "../search/state";
 import { strings } from "../strings";
 
-const DEFAULT_MODE = "search"; // no LLM call unless the user asks for an answer
+const DEFAULT_MODE = "search"; // no LLM call unless the user turns on AI Mode
 
 export function Results() {
   const [params] = useSearchParams();
@@ -29,21 +27,7 @@ export function Results() {
   const [highlight, setHighlight] = useState<number | null>(null);
   const clearTimer = useRef<number | undefined>(undefined);
   const startedAt = useRef<number>(0);
-  const [autoAnswer, setAutoAnswerState] = useState<boolean>(getAutoAnswer());
   const [attempt, setAttempt] = useState(0); // "Try again" re-runs the same search
-
-  // "Always generate answers": a plain search goes straight to the answer view.
-  useEffect(() => {
-    if (autoAnswer && mode === "search" && q.trim() && !params.get("mode")) {
-      const sp = new URLSearchParams({ q, mode: "overview", domain });
-      navigate(`/search?${sp.toString()}`, { replace: true });
-    }
-  }, [autoAnswer, mode, q, domain, params, navigate]);
-
-  function changeAutoAnswer(on: boolean) {
-    setAutoAnswer(on);
-    setAutoAnswerState(on);
-  }
 
   useEffect(() => {
     setQuery(q);
@@ -82,17 +66,14 @@ export function Results() {
   }
 
   function go(next: { q?: string; mode?: string }) {
-    const nq = next.q ?? query;
+    const nq = next.q ?? query; // switching modes keeps the typed query
     if (!nq.trim()) return;
     const m = next.mode ?? mode;
-    // A new query in Search mode leaves the mode implicit, so the "always generate
-    // answers" preference applies; an explicit tab click always keeps the mode.
-    const sp = new URLSearchParams(
-      m === "search" && !next.mode ? { q: nq, domain } : { q: nq, mode: m, domain }
-    );
+    const sp = new URLSearchParams(m === "search" ? { q: nq, domain } : { q: nq, mode: m, domain });
     navigate(`/search?${sp.toString()}`);
   }
 
+  const aiOn = mode !== "search";
   const answering = state.phase === "answering" || state.phase === "searching";
   const shownAnswer = state.answer ?? state.streamText;
   const resultsMs = state.timings.client ?? state.timings.results ?? state.timings.retrieval ?? 0;
@@ -105,7 +86,14 @@ export function Results() {
             <Logo variant="small" />
           </Link>
           <div className="order-last w-full min-w-0 sm:order-none sm:max-w-xl sm:flex-1">
-            <SearchBar value={query} onChange={setQuery} onSubmit={() => go({})} size="md" />
+            <SearchBar
+              value={query}
+              onChange={setQuery}
+              onSubmit={() => go({})}
+              size="md"
+              aiMode={aiOn}
+              onToggleAi={() => go({ mode: aiOn ? "search" : "ai" })}
+            />
           </div>
           <div className="ml-auto sm:ml-0">
             <ThemeToggle />
@@ -113,17 +101,16 @@ export function Results() {
         </div>
         <nav className="mt-2 flex gap-4 text-sm" aria-label="Search mode">
           {[
-            { id: "search", label: strings.modes.search },
-            { id: "overview", label: strings.modes.answer },
-            { id: "agentic", label: strings.modes.aiMode },
+            { id: "search", label: strings.modes.search, active: !aiOn },
+            { id: "ai", label: strings.modes.aiMode, active: aiOn },
           ].map((t) => (
             <button
               key={t.id}
               onClick={() => go({ mode: t.id })}
-              aria-current={mode === t.id ? "page" : undefined}
+              aria-current={t.active ? "page" : undefined}
               className={
                 "border-b-2 pb-2 " +
-                (mode === t.id
+                (t.active
                   ? "border-brand-700 font-medium text-content"
                   : "border-transparent text-content-muted hover:text-content")
               }
@@ -156,14 +143,7 @@ export function Results() {
           </div>
         )}
 
-        {mode === "search" ? (
-          <AnswerPrompt
-            onGenerate={() => go({ mode: "overview" })}
-            autoAnswer={autoAnswer}
-            onAutoAnswerChange={changeAutoAnswer}
-            disabled={!q.trim()}
-          />
-        ) : mode !== "closed_book" || shownAnswer ? (
+        {mode === "search" ? null : mode !== "closed_book" || shownAnswer ? (
           <AnswerCard
             answer={shownAnswer}
             mode={mode}
@@ -196,7 +176,8 @@ export function Results() {
         {state.sources.length > 0 && (
           <details className="rounded-2xl border border-mauve-200 bg-surface-raised p-4" open={mode === "search"}>
             <summary className="cursor-pointer text-sm font-medium text-content">
-              {strings.results.sourcesUsed} ({state.sources.length})
+              {mode === "search" ? strings.results.topPassages : strings.results.sourcesUsed} (
+              {state.sources.length})
             </summary>
             <div className="mt-3 space-y-3">
               {state.sources.map((s, i) => (

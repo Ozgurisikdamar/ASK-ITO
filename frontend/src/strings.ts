@@ -1,7 +1,8 @@
 // All user-facing UI text in one place (corpus is English, so UI is English).
 export const strings = {
   appName: "Ask ITO",
-  tagline: "Search a focused Wikipedia snapshot on recent Nobel Prizes, quantum computing and AI.",
+  tagline: "Search and ask about Nobel Prizes, quantum computing and AI — every answer cites its sources.",
+  backendUnavailable: "backend unavailable",
   scope: (n: number | null, date: string | null) =>
     `Searches a fixed snapshot of ${n ? n.toLocaleString() : "a few hundred"} English Wikipedia articles` +
     ` (Nobel Prizes, quantum computing, AI)${date ? ` from ${date}` : ""} — not all of Wikipedia.`,
@@ -27,12 +28,12 @@ export const strings = {
     ai: "AI",
   },
   exampleChips: [
-    "Who shared the 2020 Chemistry prize and for what?",
     "How is the 2025 Physics prize related to quantum computers?",
-    "What did Katalin Karikó and Drew Weissman win the Nobel for?",
-    "Compare the 2022 and 2023 Physics laureates' discoveries.",
-    "What is a transmon qubit?",
-    "Which 2024 laureates worked on protein structure?",
+    "What is the attention mechanism in Transformers?",
+    "How does retrieval-augmented generation differ from fine-tuning a language model?",
+    "How do AI agents use tools to complete tasks?",
+    "How do neural networks learn with backpropagation?",
+    "Why do quantum computers need error correction?",
   ],
   evaluationLink: "Evaluation",
   ragasOffline:
@@ -47,13 +48,9 @@ export const strings = {
     cachedResults: "cached results",
     webResults: "Results",
     stats: (n: number, ms: number) => `${n} results (${(ms / 1000).toFixed(2)} seconds)`,
-    sourcesUsed: "Sources used in the overview",
+    sourcesUsed: "Sources used in the answer",
+    topPassages: "Top passages",
     sourcesOnly: "Sources only: ranked passages from the corpus, no AI answer generated.",
-    answerPromptTitle: "AI answer",
-    answerPromptNote:
-      "Generates a short cited answer with a local model from the top passages. On a CPU-only machine this takes about a minute.",
-    generateAnswer: "Generate AI answer",
-    alwaysGenerate: "Always generate answers automatically (this browser)",
     citationDisclaimer:
       "Citation numbers point to the retrieved passages the answer was written from. They do not by themselves verify each claim — check the sources.",
     abstained:

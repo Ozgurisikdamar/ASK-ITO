@@ -19,12 +19,14 @@ from app.config import settings
 log = logging.getLogger("askito.warmup")
 
 FEATURED_QUERIES = [
-    "Who shared the 2020 Chemistry prize and for what?",
+    # Checked against the retrieval + evidence path (scripts/suggestion_check.py):
+    # every one has passages above the evidence cut-off from on-topic articles.
     "How is the 2025 Physics prize related to quantum computers?",
-    "What did Katalin Karikó and Drew Weissman win the Nobel for?",
-    "Compare the 2022 and 2023 Physics laureates' discoveries.",
-    "What is a transmon qubit?",
-    "Which 2024 laureates worked on protein structure?",
+    "What is the attention mechanism in Transformers?",
+    "How does retrieval-augmented generation differ from fine-tuning a language model?",
+    "How do AI agents use tools to complete tasks?",
+    "How do neural networks learn with backpropagation?",
+    "Why do quantum computers need error correction?",
 ]
 
 state: dict = {

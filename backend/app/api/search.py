@@ -13,7 +13,7 @@ from app.retrieval.service import run_search
 
 router = APIRouter()
 
-VALID_MODES = pipeline.RETRIEVAL_MODES + ["agentic"]
+VALID_MODES = pipeline.RETRIEVAL_MODES + ["agentic", "ai"]
 
 
 class SearchRequest(BaseModel):
@@ -40,6 +40,12 @@ def search(req: SearchRequest):
     if holds_slot and not generation_limiter.try_acquire():
         return JSONResponse(status_code=429, content=safe_error("busy"))
     mode, route_info = req.mode, None
+    if mode == "ai":  # AI Mode: one grounded answer, or the agent when needed
+        from app.agent.router import route
+
+        path, reason = route(req.query)
+        mode, route_info = ("agentic" if path == "agent" else "overview"), \
+            {"route": path, "route_reason": reason}
     try:
         if holds_slot and req.mode != "search":
             client = get_llm_client()  # load once in the background (see stream.model_ready)

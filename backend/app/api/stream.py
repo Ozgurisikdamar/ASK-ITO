@@ -66,7 +66,7 @@ def produce(q: str, mode: str, domain: str, cancel: threading.Event):
                     "llm": rec.summary(), "answer_cached": bool(data.get("cached")),
                     # "redis" | "pg" | "fresh" (generated now) | None (no answer)
                     "answer_cache": data.get("answer_cache"),
-                    "models": service.model_info(mode) if mode != "agentic" else
+                    "models": service.model_info(mode) if mode not in ("agentic", "ai") else
                     {"llm": settings.model_for("answer"), "reranker": settings.reranker_model,
                      "embedding": settings.embedding_model},
                 }
@@ -135,6 +135,19 @@ def _produce(q: str, mode: str, domain: str, cancel: threading.Event):
 
     if mode == "agentic":
         yield from _produce_agentic(q, domain, cancel, t0)
+        return
+
+    if mode == "ai":  # AI Mode: one grounded answer, or the agent when needed
+        from app.agent.router import route
+
+        path, reason = route(q)
+        yield "status", {"stage": "route", "route": path, "reason": reason}
+        inner = _produce_agentic(q, domain, cancel, t0) if path == "agent" \
+            else _produce(q, "overview", domain, cancel)
+        for event, data in inner:
+            if event == "done":
+                data = {**data, "mode": "ai", "route": path, "route_reason": reason}
+            yield event, data
         return
 
     if mode == "closed_book":
@@ -345,7 +358,7 @@ def search_stream(
     domain: str = Query(default="all"),
 ):
     mode = mode or settings.default_mode
-    valid = pipeline.RETRIEVAL_MODES + ["agentic"]
+    valid = pipeline.RETRIEVAL_MODES + ["agentic", "ai"]
     if mode not in valid or domain not in DOMAINS:
         def bad():
             yield _sse("error", {"error": "bad_request",
