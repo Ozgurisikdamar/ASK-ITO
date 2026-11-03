@@ -31,9 +31,11 @@ case "$cmd" in
   restart)  "${COMPOSE[@]}" restart backend ;;
   model)
     model="${1:-$(env_value LLM_DEFAULT_MODEL)}"
-    model="${model:-qwen3:30b}"
+    [ -n "$model" ] || { echo "set LLM_DEFAULT_MODEL in .env (or pass a model tag)"; exit 1; }
     echo "pulling $model into the ollama container (one-time, several GB)..."
     "${COMPOSE[@]}" exec -T ollama ollama pull "$model"
+    # show what was actually pulled: weight quantization comes from the manifest
+    "${COMPOSE[@]}" exec -T ollama ollama show "$model" | grep -iE "quantization|parameters"
     ;;
   migrate)  exec_backend python -m app.db.migrate ;;
   ingest)   exec_backend python -m app.ingest.run "$@" ;;

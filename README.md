@@ -114,13 +114,31 @@ is resumable). See ADR-0007/0008.
 
 **Local (default).** The `ollama` service starts with the stack and keeps the
 model loaded in RAM (`OLLAMA_KEEP_ALIVE=24h`). The default answer model is
-`qwen3.5:9b` (`LLM_DEFAULT_MODEL`; pull it once with `./askito model`). It is
+`qwen3.5:9b-q8_0` — Q8_0 weights (`LLM_DEFAULT_MODEL`; pull it once with
+`./askito model`, which also prints the quantization Ollama reports). The
+Q4_K_M build `qwen3.5:9b-q4_K_M` (same as `qwen3.5:9b`) is the baseline and the
+rollback if Q8_0 does not fit in memory; no lower weight quantization is
+recommended. The tag is set only in `.env` / `app/config.py`. It is
 the answer generator only: retrieval and reranking do not use it, and the
 default path calls it once per answer (temperature 0, at most
 `OVERVIEW_MAX_TOKENS`=320 tokens, top `OVERVIEW_CONTEXT_CHUNKS`=4 passages).
 
 Reasoning output is off (`LLM_THINK=false`; sent only to models that report
 the thinking capability), which matters a lot for speed.
+
+*KV cache.* The attention KV cache and prompt-prefix reuse live inside Ollama,
+never in Redis. Compose sets `OLLAMA_KV_CACHE_TYPE=f16` (no extra compression)
+with flash attention; set `OLLAMA_KV_CACHE_TYPE=q8_0` in `.env` only if f16
+runs out of memory. This is independent of the weight quantization in the tag.
+
+*Redis (optional cache).* Compose runs a local `redis` service (no host port,
+no persistence, 256 MB LRU) as a shared L2 behind the in-process caches: query
+embeddings, retrieval results (chunk ids + scores), a front cache for the
+PostgreSQL answer cache and the agent's deterministic tool calls. Keys carry the
+index version, models (including the served weight quantization), prompt
+version and retrieval settings, and every entry has a TTL. If Redis is down the
+backend logs one warning and keeps working on its in-process and PostgreSQL
+caches. Outside Docker it is off (`REDIS_ENABLED=false`).
 After changing `.env` run `./askito model` (if the model is new) and
 `./askito restart`.
 

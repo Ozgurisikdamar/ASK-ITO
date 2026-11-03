@@ -38,7 +38,12 @@ class Settings(BaseSettings):
     llm_mode: str = "ollama"
     llm_base_url: str = "http://localhost:11434"
     llm_api_key: str = "ollama"
-    llm_default_model: str = "qwen3.5:9b"  # answer generator for the fast path
+    # The one place the model tag is set (env LLM_DEFAULT_MODEL overrides it).
+    # Weights: Q8_0 (qwen3.5:9b-q8_0, manifest verified: file_type Q8_0).
+    # Baseline / rollback: qwen3.5:9b-q4_K_M (same manifest as qwen3.5:9b).
+    # No lower weight quantization is recommended. KV-cache precision is a
+    # separate Ollama setting (OLLAMA_KV_CACHE_TYPE), not part of the tag.
+    llm_default_model: str = "qwen3.5:9b-q8_0"
     llm_agent_model: str = ""
     llm_answer_model: str = ""
     llm_judge_model: str = ""
