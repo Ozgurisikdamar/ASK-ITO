@@ -84,6 +84,10 @@ services:
       OLLAMA_KV_CACHE_TYPE: ${OLLAMA_KV_CACHE_TYPE:-f16}
       OLLAMA_CONTEXT_LENGTH: "4096"   # prompts are short; a small context is faster
       OLLAMA_LOAD_TIMEOUT: 30m        # first load from a cold disk can exceed the 5 min default
+      # Cap llama-server's host-RAM prompt cache (default limit 8 GiB). Measured: it
+      # held 2.6 GiB after 15 prompts and pushed Q8_0 + the app past 16 GB. Exact
+      # repeats of recent prompts are still reused.
+      LLAMA_ARG_CACHE_RAM: ${LLAMA_ARG_CACHE_RAM:-1024}
     ports:
       - "11434:11434"
     volumes:

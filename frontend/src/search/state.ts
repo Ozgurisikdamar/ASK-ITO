@@ -1,4 +1,6 @@
-import type { Citation, DoneEvent, ResultItem, ResultsEvent, Source, TraceStep } from "../api/client";
+import type {
+  Citation, DoneEvent, ResultItem, ResultsEvent, Source, StatusEvent, StreamError, TraceStep,
+} from "../api/client";
 
 export type Phase = "searching" | "answering" | "done" | "error";
 
@@ -17,7 +19,9 @@ export interface SearchState {
   model: string | null;
   reranker: string | null;
   abstained: boolean;
-  error: string | null;
+  status: StatusEvent | null; // queued / loading the model
+  error: string | null; // message shown to the user
+  errorCode: string | null;
 }
 
 export const initialState: SearchState = {
@@ -35,7 +39,9 @@ export const initialState: SearchState = {
   model: null,
   reranker: null,
   abstained: false,
+  status: null,
   error: null,
+  errorCode: null,
 };
 
 export type Action =
@@ -46,7 +52,8 @@ export type Action =
   | { type: "step"; step: TraceStep }
   | { type: "token"; text: string }
   | { type: "done"; data: DoneEvent }
-  | { type: "error"; detail: string };
+  | { type: "status"; data: StatusEvent }
+  | { type: "error"; data: StreamError };
 
 export function reducer(state: SearchState, action: Action): SearchState {
   switch (action.type) {
@@ -72,7 +79,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
     case "step":
       return { ...state, steps: [...state.steps, action.step] };
     case "token":
-      return { ...state, streamText: state.streamText + action.text, phase: "answering" };
+      return { ...state, streamText: state.streamText + action.text, phase: "answering", status: null };
     case "done":
       return {
         ...state,
@@ -85,7 +92,16 @@ export function reducer(state: SearchState, action: Action): SearchState {
         reranker: action.data.reranker ?? null,
         abstained: !!action.data.abstained,
       };
+    case "status":
+      return { ...state, status: action.data };
     case "error":
-      return { ...state, phase: "error", error: action.detail };
+      // keep results, sources and any partial answer: only the generation failed
+      return {
+        ...state,
+        phase: "error",
+        status: null,
+        error: action.data.message || action.data.detail || action.data.error,
+        errorCode: action.data.error,
+      };
   }
 }

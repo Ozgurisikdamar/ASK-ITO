@@ -79,14 +79,36 @@ export interface DoneEvent {
   llm_calls?: number;
 }
 
+/** Progress that is not an answer yet: waiting for a free slot or for the
+ * local model to load into memory (a cold Q8_0 load can take minutes). */
+export interface StatusEvent {
+  stage: "queued" | "model_loading" | "model_loaded" | string;
+  model?: string;
+  elapsed_s?: number;
+  rid?: string;
+}
+
+/** Error event: `error` is a stable code (model_memory, model_not_found,
+ * model_unreachable, model_timeout, model_load_timeout, busy, search_failed,
+ * connection, ...); `message` is safe to show. */
+export interface StreamError {
+  error: string;
+  message?: string;
+  detail?: string;
+  error_id?: string;
+  rid?: string;
+  stage?: string;
+}
+
 export interface StreamHandlers {
   onResults?: (d: ResultsEvent) => void;
   onReranked?: (d: ResultsEvent) => void;
   onSources?: (sources: Source[]) => void;
   onStep?: (step: TraceStep) => void;
+  onStatus?: (d: StatusEvent) => void;
   onToken?: (text: string) => void;
   onDone?: (d: DoneEvent) => void;
-  onError?: (d: { error: string; detail: string }) => void;
+  onError?: (d: StreamError) => void;
 }
 
 /**
@@ -111,6 +133,7 @@ export function openSearchStream(
   on<ResultsEvent>("reranked", (d) => h.onReranked?.(d));
   on<{ sources: Source[] }>("sources", (d) => h.onSources?.(d.sources));
   on<TraceStep>("step", (d) => h.onStep?.(d));
+  on<StatusEvent>("status", (d) => h.onStatus?.(d));
   on<{ t: string }>("token", (d) => h.onToken?.(d.t));
   on<DoneEvent>("done", (d) => {
     finish();
@@ -123,7 +146,10 @@ export function openSearchStream(
       h.onError?.(JSON.parse(data));
     } else if (!finished) {
       finish();
-      h.onError?.({ error: "connection", detail: "The connection to the server was lost." });
+      h.onError?.({
+        error: "connection",
+        message: "The connection to the server was lost. The answer may have been interrupted.",
+      });
     }
   });
   return finish;

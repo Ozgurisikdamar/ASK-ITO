@@ -233,8 +233,92 @@ def test_timeout_surfaces_as_error():
         raise httpx.ReadTimeout("slow", request=req)
 
     c = _wire(OllamaClient("http://o:11434", default_model="m"), handler)
-    with pytest.raises(httpx.ReadTimeout):
+    with pytest.raises(LLMError) as err:
         c.chat([{"role": "user", "content": "q"}])
+    assert err.value.code == "model_timeout"
+
+
+@pytest.mark.parametrize("status,body,code", [
+    (500, '{"error":"model requires more system memory (11.2 GiB) than is available '
+          '(7.6 GiB)"}', "model_memory"),
+    (500, '{"error":"llama runner process has terminated: signal: killed"}', "model_memory"),
+    (404, '{"error":"model \'qwen3.5:9b-q8_0\' not found, try pulling it first"}',
+     "model_not_found"),
+    (500, '{"error":"timed out waiting for llama-server to start"}', "model_load_timeout"),
+    (500, '{"error":"something else"}', "generation_failed"),
+])
+def test_errors_are_classified_and_hopeless_ones_not_retried(status, body, code):
+    calls = []
+
+    def handler(req):
+        if req.url.path == "/api/show":
+            return httpx.Response(404)
+        calls.append(1)
+        return httpx.Response(status, text=body)
+
+    c = _wire(OllamaClient("http://o:11434", default_model="m"), handler)
+    with pytest.raises(LLMError) as err:
+        c.chat([{"role": "user", "content": "q"}])
+    assert err.value.code == code
+    retried = llm.settings.llm_max_retries + 1
+    assert len(calls) == (retried if code == "generation_failed" else 1)
+
+
+def test_unreachable_server_is_classified():
+    def handler(req):
+        raise httpx.ConnectError("refused", request=req)
+
+    c = _wire(OllamaClient("http://o:11434", default_model="m"), handler)
+    with pytest.raises(LLMError) as err:
+        list(c.stream_chat([{"role": "user", "content": "q"}]))
+    assert err.value.code == "model_unreachable"
+
+
+def test_model_load_is_shared_and_survives_a_waiter_giving_up(monkeypatch):
+    """Ollama aborts a load when the requesting client disconnects. The load runs
+    in one background request with a long timeout; waiters only poll, so a waiter
+    that gives up (cancel) does not abort it, and concurrent waiters share it."""
+    import threading
+
+    monkeypatch.setattr(llm.settings, "llm_load_poll_s", 0.05)
+    loaded = threading.Event()
+    generate_calls = []
+
+    def handler(req):
+        if req.url.path == "/api/ps":
+            names = [{"name": "m"}] if loaded.is_set() else []
+            return httpx.Response(200, json={"models": names})
+        if req.url.path == "/api/generate":
+            generate_calls.append(1)
+            threading.Event().wait(0.4)  # a slow load (time.sleep is stubbed here)
+            loaded.set()
+            return httpx.Response(200, json={"done": True})
+        return httpx.Response(404)
+
+    c = _wire(OllamaClient("http://o:11434", default_model="m"), handler)
+    assert c.is_loaded() is False
+    cancel = threading.Event()
+    cancel.set()  # this waiter leaves at once
+    assert c.ensure_loaded(cancel=cancel)["loaded"] is False
+    progress = []
+    res = c.ensure_loaded(progress=progress.append)  # the same load, not a new one
+    assert res["loaded"] is True and len(generate_calls) == 1 and progress
+    assert c.is_loaded() is True
+
+
+def test_model_load_failure_is_reported_to_waiters(monkeypatch):
+    monkeypatch.setattr(llm.settings, "llm_load_poll_s", 0.05)
+
+    def handler(req):
+        if req.url.path == "/api/ps":
+            return httpx.Response(200, json={"models": []})
+        return httpx.Response(500, text='{"error":"model requires more system memory '
+                                        '(11.2 GiB) than is available (7.6 GiB)"}')
+
+    c = _wire(OllamaClient("http://o2:11434", default_model="m"), handler)
+    with pytest.raises(LLMError) as err:
+        c.ensure_loaded()
+    assert err.value.code == "model_memory"
 
 
 def test_role_model_fallback(monkeypatch):

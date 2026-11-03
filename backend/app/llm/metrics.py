@@ -129,7 +129,10 @@ class InstrumentedLLM:
             rec.setdefault("tokens", "unknown")
         if exc is not None:
             rec["error"] = exc.__class__.__name__
-            rec["timeout"] = isinstance(exc, httpx.TimeoutException)
+            rec["timeout"] = isinstance(exc, httpx.TimeoutException) or \
+                getattr(exc, "code", None) in ("model_timeout", "model_load_timeout")
+            if getattr(exc, "code", None):
+                rec["error_code"] = exc.code
         recorder = _recorder.get()
         if recorder is not None:
             recorder.add(rec)

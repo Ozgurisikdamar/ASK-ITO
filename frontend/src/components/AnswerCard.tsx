@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { StatusEvent, TraceStep } from "../api/client";
 import { strings } from "../strings";
 
 interface AnswerCardProps {
@@ -10,6 +11,20 @@ interface AnswerCardProps {
   waiting?: boolean; // no token yet
   model?: string | null;
   cached?: boolean;
+  status?: StatusEvent | null; // queued / loading the local model
+  lastStep?: TraceStep | null; // AI Mode: the agent step in progress
+  error?: string | null; // generation failed (results and sources stay)
+  errorCode?: string | null;
+  onRetry?: () => void;
+}
+
+/** One line describing what is happening while no answer text is shown yet. */
+function progressText(status?: StatusEvent | null, step?: TraceStep | null): string {
+  if (status?.stage === "queued") return strings.results.queued;
+  if (status?.stage === "model_loading")
+    return strings.results.modelLoading(status.model ?? "", status.elapsed_s ?? 0);
+  if (step) return strings.results.agentStep(step.step, step.input);
+  return strings.results.generating;
 }
 
 function renderWithCitations(answer: string, onCite: (n: number) => void) {
@@ -35,6 +50,7 @@ function renderWithCitations(answer: string, onCite: (n: number) => void) {
 
 export function AnswerCard({
   answer, mode, timings, onCite, streaming = false, waiting = false, model, cached = false,
+  status = null, lastStep = null, error = null, errorCode = null, onRetry,
 }: AnswerCardProps) {
   const [copied, setCopied] = useState(false);
   const notFound = !streaming && answer.toLowerCase().includes(strings.results.notFoundPhrase);
@@ -55,7 +71,7 @@ export function AnswerCard({
     <section
       className={
         "rounded-2xl border p-5 shadow-sm " +
-        (notFound ? "border-lilac-300 bg-mauve-200" : "border-mauve-200 bg-surface-raised")
+        (notFound || error ? "border-lilac-300 bg-mauve-200" : "border-mauve-200 bg-surface-raised")
       }
       aria-label={strings.results.overview}
       aria-busy={streaming || waiting}
@@ -76,18 +92,38 @@ export function AnswerCard({
           )}
         </div>
       </div>
-      {waiting ? (
-        <div className="space-y-2" aria-label={strings.results.generating}>
-          <p className="text-sm text-content-muted">{strings.results.generating}</p>
-          <div className="h-3 w-11/12 animate-pulse rounded bg-mauve-200" />
-          <div className="h-3 w-9/12 animate-pulse rounded bg-mauve-200" />
-        </div>
-      ) : (
+      {answer && (
         <p className="whitespace-pre-wrap leading-relaxed text-content">
-          {answer ? renderWithCitations(answer, onCite) : strings.results.noAnswer}
+          {renderWithCitations(answer, onCite)}
           {streaming && <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-brand-500 align-middle" />}
         </p>
       )}
+      {error ? (
+        <div role="alert" className={answer ? "mt-3 border-t border-lilac-300 pt-3" : ""}>
+          <p className="text-sm font-medium text-content">
+            {answer ? strings.results.answerInterrupted : strings.results.answerFailed}
+          </p>
+          <p className="mt-1 text-sm text-content-muted" data-error-code={errorCode ?? undefined}>
+            {error}
+          </p>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="mt-3 rounded-full bg-brand-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-500"
+            >
+              {strings.results.retry}
+            </button>
+          )}
+        </div>
+      ) : waiting ? (
+        <div className="space-y-2" aria-live="polite">
+          <p className="text-sm text-content-muted">{progressText(status, lastStep)}</p>
+          <div className="h-3 w-11/12 animate-pulse rounded bg-mauve-200" />
+          <div className="h-3 w-9/12 animate-pulse rounded bg-mauve-200" />
+        </div>
+      ) : !answer ? (
+        <p className="text-sm text-content-muted">{strings.results.noAnswer}</p>
+      ) : null}
     </section>
   );
 }

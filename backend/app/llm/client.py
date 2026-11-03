@@ -41,7 +41,42 @@ _THINK_BLOCK = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 
 
 class LLMError(RuntimeError):
-    pass
+    """An LLM call failed. `code` says why, so the API can tell the user what to do:
+    model_memory | model_not_found | model_unreachable | model_timeout |
+    model_load_timeout | cancelled | generation_failed."""
+
+    def __init__(self, message: str, code: str = "generation_failed") -> None:
+        super().__init__(message)
+        self.code = code
+
+
+_MEMORY_HINTS = ("requires more system memory", "out of memory", "insufficient memory",
+                 "not enough memory", "signal: killed", "cannot allocate memory",
+                 "failed to allocate")
+
+
+def classify_error_text(status: int | None, text: str) -> str:
+    """Error code for an Ollama / OpenAI-compatible error response."""
+    low = (text or "").lower()
+    if any(h in low for h in _MEMORY_HINTS):
+        return "model_memory"
+    if status == 404 or ("model" in low and "not found" in low):
+        return "model_not_found"
+    if "timed out waiting for llama-server" in low or "timed out waiting for llama runner" in low:
+        return "model_load_timeout"
+    return "generation_failed"
+
+
+def _transport_error(exc: Exception) -> LLMError:
+    """Map an httpx exception to a classified LLMError (message keeps the class only)."""
+    if isinstance(exc, httpx.ConnectError | httpx.ConnectTimeout):
+        return LLMError(f"model server unreachable ({exc.__class__.__name__})",
+                        "model_unreachable")
+    if isinstance(exc, httpx.TimeoutException):
+        return LLMError(f"model server did not answer in time ({exc.__class__.__name__})",
+                        "model_timeout")
+    return LLMError(f"connection to the model server failed ({exc.__class__.__name__})",
+                    "generation_failed")
 
 
 class LLMClient(Protocol):
@@ -132,41 +167,78 @@ class _HTTPClient:
         except ValueError:
             return min(2.0 ** attempt, 30.0)
 
-    def _post(self, url: str, body: dict) -> dict:
+    def _post(self, url: str, body: dict, timeout: httpx.Timeout | None = None) -> dict:
         for attempt in range(settings.llm_max_retries + 1):
-            resp = self._http.post(url, json=body)
-            if resp.status_code == 429 or resp.status_code >= 500:
+            try:
+                resp = self._http.post(url, json=body, **({"timeout": timeout} if timeout else {}))
+            except httpx.HTTPError as exc:
+                raise _transport_error(exc) from exc
+            code = classify_error_text(resp.status_code, resp.text) \
+                if resp.status_code >= 400 else None
+            if (resp.status_code == 429 or resp.status_code >= 500) and code in (
+                    None, "generation_failed"):  # memory / missing model: retrying won't help
                 if attempt < settings.llm_max_retries:
                     time.sleep(self._retry_wait(resp, attempt))
                     continue
             if 300 <= resp.status_code < 400:
                 raise LLMError(f"HTTP {resp.status_code}: redirects are not followed")
             if resp.status_code >= 400:
-                raise LLMError(f"HTTP {resp.status_code}: {resp.text[:300]}")
+                raise LLMError(f"HTTP {resp.status_code}: {resp.text[:300]}", code)
             return resp.json()
         raise LLMError("retries exhausted")
 
     def _stream_lines(self, url: str, body: dict, cancel: threading.Event | None):
         for attempt in range(settings.llm_max_retries + 1):
-            with self._http.stream("POST", url, json=body) as resp:
-                if (resp.status_code == 429 or resp.status_code >= 500) and \
-                        attempt < settings.llm_max_retries:
-                    wait = self._retry_wait(resp, attempt)
-                    resp.close()
-                    time.sleep(wait)
-                    continue
-                if 300 <= resp.status_code < 400:
-                    raise LLMError(f"HTTP {resp.status_code}: redirects are not followed")
-                if resp.status_code >= 400:
-                    resp.read()
-                    raise LLMError(f"HTTP {resp.status_code}: {resp.text[:300]}")
-                for line in resp.iter_lines():
-                    if cancel is not None and cancel.is_set():
-                        return  # closing the response cancels generation server-side
-                    if line:
-                        yield line
-                return
+            try:
+                with self._http.stream("POST", url, json=body) as resp:
+                    if (resp.status_code == 429 or resp.status_code >= 500) and \
+                            attempt < settings.llm_max_retries:
+                        resp.read()
+                        if classify_error_text(resp.status_code, resp.text) == \
+                                "generation_failed":
+                            wait = self._retry_wait(resp, attempt)
+                            resp.close()
+                            time.sleep(wait)
+                            continue
+                    if 300 <= resp.status_code < 400:
+                        raise LLMError(f"HTTP {resp.status_code}: redirects are not followed")
+                    if resp.status_code >= 400:
+                        resp.read()
+                        raise LLMError(f"HTTP {resp.status_code}: {resp.text[:300]}",
+                                       classify_error_text(resp.status_code, resp.text))
+                    yield from self._lines_until_cancel(resp, cancel)
+                    return
+            except httpx.HTTPError as exc:
+                if cancel is not None and cancel.is_set():
+                    return  # we closed the connection ourselves
+                raise _transport_error(exc) from exc
         raise LLMError("retries exhausted")
+
+    @staticmethod
+    def _lines_until_cancel(resp: httpx.Response, cancel: threading.Event | None):
+        """Yield response lines; on cancel, close the response from a watcher thread so
+        a request still in prompt evaluation (no tokens yet) stops at once and the
+        model server aborts the generation."""
+        done = threading.Event()
+        if cancel is not None:
+            def watch() -> None:
+                while not done.is_set():
+                    if cancel.wait(0.25):
+                        try:
+                            resp.close()
+                        except Exception:  # noqa: BLE001
+                            pass
+                        return
+
+            threading.Thread(target=watch, name="askito-llm-cancel", daemon=True).start()
+        try:
+            for line in resp.iter_lines():
+                if cancel is not None and cancel.is_set():
+                    return  # closing the response cancels generation server-side
+                if line:
+                    yield line
+        finally:
+            done.set()
 
 
 class OllamaClient(_HTTPClient):
@@ -314,7 +386,8 @@ class OllamaClient(_HTTPClient):
             for line in self._stream_lines(f"{self.base_url}/api/chat", b, cancel):
                 obj = json.loads(line)
                 if obj.get("error"):
-                    raise LLMError(str(obj["error"]))
+                    raise LLMError(str(obj["error"]),
+                                   classify_error_text(None, str(obj["error"])))
                 piece = filt.feed(obj.get("message", {}).get("content", ""))
                 if piece:
                     yield piece
@@ -335,9 +408,50 @@ class OllamaClient(_HTTPClient):
                 raise
 
     def warmup(self) -> None:
-        """Load the model into RAM without generating (empty prompt)."""
-        self._post(f"{self.base_url}/api/generate",
-                   {"model": self._model(None), "prompt": "", "keep_alive": settings.llm_keep_alive})
+        """Load the model into RAM without generating (blocks until it is loaded)."""
+        self.ensure_loaded()
+
+    # -- model residency -------------------------------------------------------
+    def is_loaded(self, model: str | None = None) -> bool | None:
+        """True/False from /api/ps; None if the server cannot tell us."""
+        model = self._model(model)
+        try:
+            resp = self._http.get(f"{self.base_url}/api/ps",
+                                  timeout=settings.llm_ping_timeout_s * 2)
+            if resp.status_code != 200:
+                return None
+            names = {m.get("name") for m in resp.json().get("models", [])} | \
+                {m.get("model") for m in resp.json().get("models", [])}
+        except Exception:  # noqa: BLE001
+            return None
+        return model in names or f"{model}:latest" in names
+
+    def begin_load(self, model: str | None = None) -> "ModelLoad":
+        """Start loading the model in a background thread (one load per model and
+        server, shared by every request) and return its handle. The load is never
+        tied to a user request: Ollama aborts a load when the requesting client
+        disconnects, so a request that gives up must not take the load with it."""
+        return _load_for(self, self._model(model))
+
+    def ensure_loaded(self, model: str | None = None, *, cancel: threading.Event | None = None,
+                      progress=None) -> dict:
+        """Block until the model is resident (or LLM_LOAD_TIMEOUT_S), reporting progress
+        every few seconds. Raises a classified LLMError on failure; returns
+        {"waited_s", "loaded"} — loaded=False only when `cancel` was set.
+
+        /api/ps cannot be trusted for this: Ollama lists a model as soon as its
+        runner starts loading. A load request (empty prompt) is instead always made
+        through the shared loader; for a resident model it returns at once."""
+        handle = self.begin_load(self._model(model))
+        while True:
+            if handle.done.wait(settings.llm_load_poll_s):
+                if handle.error is not None:
+                    raise handle.error
+                return {"waited_s": round(handle.elapsed(), 1), "loaded": True}
+            if cancel is not None and cancel.is_set():
+                return {"waited_s": round(handle.elapsed(), 1), "loaded": False}
+            if progress is not None:
+                progress(handle.elapsed())
 
 
 class OpenAICompatClient(_HTTPClient):
@@ -431,6 +545,58 @@ class MockLLMClient:
 
     def warmup(self) -> None:
         return None
+
+
+class ModelLoad:
+    """One background model load (see OllamaClient.begin_load)."""
+
+    def __init__(self, model: str) -> None:
+        self.model = model
+        self.started = time.monotonic()
+        self.done = threading.Event()
+        self.error: LLMError | None = None
+
+    def elapsed(self) -> float:
+        return time.monotonic() - self.started
+
+
+_loads: dict[tuple[str, str], ModelLoad] = {}
+_loads_lock = threading.Lock()
+
+
+def _load_for(client: "OllamaClient", model: str) -> ModelLoad:
+    key = (client.base_url, model)
+    with _loads_lock:
+        current = _loads.get(key)
+        if current is not None and not current.done.is_set():
+            return current
+        handle = ModelLoad(model)
+        _loads[key] = handle
+
+    def run() -> None:
+        try:
+            timeout = httpx.Timeout(settings.llm_load_timeout_s,
+                                    connect=settings.llm_connect_timeout_s)
+            data = client._post(f"{client.base_url}/api/generate",
+                                {"model": model, "prompt": "",
+                                 "keep_alive": settings.llm_keep_alive}, timeout=timeout)
+            if data.get("error"):
+                raise LLMError(str(data["error"]), classify_error_text(None, str(data["error"])))
+            log.info("model %s loaded in %.1f s", model, handle.elapsed())
+        except LLMError as exc:
+            if exc.code == "model_timeout":
+                exc = LLMError(f"loading {model} took longer than LLM_LOAD_TIMEOUT_S",
+                               "model_load_timeout")
+            handle.error = exc
+            log.warning("model %s failed to load after %.1f s: %s", model, handle.elapsed(),
+                        exc.code)
+        except Exception as exc:  # noqa: BLE001
+            handle.error = LLMError(f"model load failed ({exc.__class__.__name__})")
+        finally:
+            handle.done.set()
+
+    threading.Thread(target=run, name=f"askito-load-{model}", daemon=True).start()
+    return handle
 
 
 def make_client(mode: str, base_url: str, api_key: str, default_model: str = ""):

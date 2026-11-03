@@ -6,7 +6,7 @@ import logging
 import re
 
 from app.agent.prompts import load
-from app.llm.client import LLMClient, get_llm_client
+from app.llm.client import LLMClient, LLMError, get_llm_client
 
 log = logging.getLogger("askito.rewrite")
 
@@ -31,6 +31,13 @@ def rewrite_query(query: str, llm: LLMClient | None = None) -> str:
     try:
         rewritten, _hit = tool_cache.get_or_call("rewrite", "agent", prompt, 120, compute)
         return rewritten or query
+    except LLMError as exc:
+        from app.agent.loop import FATAL_LLM_CODES
+
+        if exc.code in FATAL_LLM_CODES:
+            raise  # the model is unusable: no point continuing the agent
+        log.warning("query rewrite failed (%s); searching the original query", exc.code)
+        return query
     except Exception as exc:  # noqa: BLE001  (rewriting is optional: search the original)
         log.warning("query rewrite failed (%s: %s); searching the original query",
                     exc.__class__.__name__, str(exc)[:200])

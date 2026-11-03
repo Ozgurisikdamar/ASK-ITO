@@ -5,7 +5,8 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from app.api.errors import generation_limiter, needs_generation, safe_error
+from app.api.errors import generation_limiter, llm_error, needs_generation, safe_error
+from app.llm.client import LLMError, get_llm_client
 from app.config import settings
 from app.retrieval import pipeline
 from app.retrieval.service import run_search
@@ -38,12 +39,23 @@ def search(req: SearchRequest):
     holds_slot = needs_generation(req.mode)
     if holds_slot and not generation_limiter.try_acquire():
         return JSONResponse(status_code=429, content=safe_error("busy"))
+    mode, route_info = req.mode, None
     try:
-        if req.mode == "agentic":
+        if holds_slot and req.mode != "search":
+            client = get_llm_client()  # load once in the background (see stream.model_ready)
+            if hasattr(client, "ensure_loaded"):
+                for role in ("agent", "answer") if mode == "agentic" else ("answer",):
+                    client.ensure_loaded(settings.model_for(role))
+        if mode == "agentic":
             from app.agent.loop import run_agent
 
-            return run_agent(req.query, req.domain, req.final_k or settings.final_k)
-        return run_search(req.query, req.mode, req.domain, req.final_k)
+            res = run_agent(req.query, req.domain, req.final_k or settings.final_k)
+        else:
+            res = run_search(req.query, mode, req.domain, req.final_k)
+        return {**res, **route_info} if route_info else res
+    except LLMError as exc:
+        status = 504 if exc.code in ("model_timeout", "model_load_timeout") else 503
+        return JSONResponse(status_code=status, content=llm_error(exc))
     except Exception as exc:  # noqa: BLE001  (details are logged, not returned)
         return JSONResponse(status_code=500, content=safe_error("search_failed", exc))
     finally:

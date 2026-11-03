@@ -164,14 +164,29 @@ caches. Outside Docker it is off (`REDIS_ENABLED=false`).
 After changing `.env` run `./askito model` (if the model is new) and
 `./askito restart`.
 
-*Memory.* Measured on a CPU-only 15.7 GB sandbox (Ollama process RSS while
-answering): Q8_0 `qwen3.5:9b-q8_0` peaked at 12.3 GB, Q4_K_M `qwen3.5:9b` at
-7.7 GB; the runner's in-memory prompt cache grows with use. The backend's
-embedding and reranker models need about 1–2 GB more. On that 15.7 GB machine
-Q8_0 plus an agent run was killed by the out-of-memory killer (runner at
-13.0 GB), so plan for well over 16 GB for Q8_0 — or use the Q4_K_M rollback
-(`LLM_DEFAULT_MODEL=qwen3.5:9b-q4_K_M`). Check with `ollama ps` and the
-process RSS on your own machine.
+*Memory and first load.* Q8_0 (`qwen3.5:9b-q8_0`) is the default and stays the
+default. Measured on a CPU-only sandbox with 15.7 GB (Ollama process RSS): about
+11.7 GB once loaded, up to 12.3 GB while answering; the backend's embedding and
+reranker models need about 1.1 GB more. Q8_0 plus the app therefore needs
+**at least 14 GB available to Docker**. With less, Ollama refuses to load the
+model or the kernel stops it; AI Mode then shows "not enough memory" (Search
+keeps working). `LLAMA_ARG_CACHE_RAM` (compose default 1024 MiB) caps
+llama-server's in-memory prompt cache, which otherwise grows to 8 GiB.
+The first answer after a restart loads about 10 GB from disk: 689 s measured on
+the sandbox with a cold disk cache. The UI shows "Loading the local model…" with
+the elapsed time; the load runs in one shared background request
+(`LLM_LOAD_TIMEOUT_S`, default 30 min), so leaving the page does not abort it.
+Q4_K_M (`qwen3.5:9b-q4_K_M`) is kept only as an explicit benchmark /
+troubleshooting option; nothing switches to it automatically.
+
+*Docker Desktop on macOS.* Docker Desktop runs Linux containers in a VM without
+GPU access, so the `ollama` service runs CPU-only there, inside the VM's memory
+limit (Settings → Resources → Memory; give it at least 14 GB for Q8_0). Running
+Ollama natively on the Mac (Metal GPU) and pointing the backend at it with
+`LLM_BASE_URL=http://host.docker.internal:11434` plus
+`LLM_ALLOWED_HOSTS=host.docker.internal` is possible but **NOT VERIFIED** in this
+project (`host.docker.internal` must resolve to a private address to pass the
+local-only check).
 
 *Windows / Docker Desktop memory:* WSL 2 gives Docker about half of the host
 RAM by default. If the model does not fit, raise the limit in

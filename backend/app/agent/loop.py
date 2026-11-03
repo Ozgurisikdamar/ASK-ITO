@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import time
 
-from app.agent.answer import generate_answer
+import threading
+
+from app.agent.answer import generate_answer, stream_answer
 from app.agent.prompts import load
 from app.agent.schemas import Analysis, Sufficiency, call_json
 from app.config import settings
-from app.llm.client import LLMClient, get_llm_client
+from app.llm.client import LLMClient, LLMError, get_llm_client
 from app.llm.metrics import current_recorder, instrumented, llm_role, log_request, recording
 from app.retrieval import hydrate, pipeline, reranker
 
@@ -48,13 +50,47 @@ def _now() -> float:
     return time.perf_counter()
 
 
+class AgentCancelled(Exception):
+    """The client went away; the agent stops between steps."""
+
+
+# These mean every further LLM call would fail the same way: stop at once.
+FATAL_LLM_CODES = ("model_memory", "model_not_found", "model_unreachable",
+                   "model_load_timeout")
+
+
+class _Trace(list):
+    """The step trace; with `emit`, every step is also sent to the client as it
+    happens (AI Mode shows progress instead of a silent wait)."""
+
+    def __init__(self, emit=None) -> None:
+        super().__init__()
+        self.emit = emit
+
+    def append(self, item) -> None:
+        super().append(item)
+        if self.emit is not None:
+            self.emit("step", item)
+
+
+def _helper_failed(exc: LLMError, step: str, trace: list) -> None:
+    """A helper call (analyse / sufficiency) failed. Fatal model errors stop the
+    agent; anything else (timeout, malformed output) degrades the step."""
+    if exc.code in FATAL_LLM_CODES:
+        raise exc
+    trace.append({"step": "llm_error", "input": step, "output": exc.code, "duration_ms": 0})
+
+
 def _analyse(llm: _CountingLLM, query: str, trace: list[dict]) -> Analysis:
     t0 = _now()
     analysis = None
     if llm.remaining >= 2:
-        with llm_role("analyze"):
-            analysis = call_json(llm, load("analyze").replace("{question}", query), Analysis,
-                                 cache_role="analyze")
+        try:
+            with llm_role("analyze"):
+                analysis = call_json(llm, load("analyze").replace("{question}", query),
+                                     Analysis, cache_role="analyze")
+        except LLMError as exc:  # degrade to a simple single-query analysis
+            _helper_failed(exc, "analyze", trace)
     analysis = analysis or Analysis(qtype="simple", subquestions=[])
     subs = [s for s in analysis.subquestions if s.strip()][: settings.agent_max_subquestions]
     analysis.subquestions = subs
@@ -150,17 +186,22 @@ def _context_for_sufficiency(cand: dict[int, float], max_chunks: int = 8) -> str
 
 def run_agent(
     query: str, domain: str | None = "all", final_k: int | None = None,
-    llm: LLMClient | None = None,
+    llm: LLMClient | None = None, cancel: threading.Event | None = None, emit=None,
 ) -> dict:
     """Run the agent; adds a `metrics` object (timings, LLM calls by role,
-    rounds, candidate counts) without changing the answer."""
+    rounds, candidate counts) without changing the answer.
+
+    With `emit(event, data)` (AI Mode streaming) every step is emitted as it
+    happens, then the numbered sources, then the final answer token by token.
+    `cancel` stops the agent between steps and the answer mid-stream
+    (AgentCancelled)."""
     outer = current_recorder()
     if outer is not None:
-        res = _run_agent(query, domain, final_k, llm)
+        res = _run_agent(query, domain, final_k, llm, cancel, emit)
         res["metrics"] = _agent_metrics(res, outer)
         return res
     with recording() as rec:
-        res = _run_agent(query, domain, final_k, llm)
+        res = _run_agent(query, domain, final_k, llm, cancel, emit)
     res["metrics"] = _agent_metrics(res, rec)
     log_request("agentic", res["metrics"])
     return res
@@ -187,12 +228,17 @@ def _agent_metrics(res: dict, rec) -> dict:
 
 def _run_agent(
     query: str, domain: str | None, final_k: int | None, llm: LLMClient | None,
+    cancel: threading.Event | None = None, emit=None,
 ) -> dict:
     final_k = final_k or settings.final_k
     start = _now()
     deadline = start + settings.agent_timeout_s
     counter = _CountingLLM(llm or get_llm_client(), settings.agent_max_llm_calls)
-    trace: list[dict] = []
+    trace: list[dict] = _Trace(emit)
+
+    def check() -> None:
+        if cancel is not None and cancel.is_set():
+            raise AgentCancelled()
     candidates: dict[int, float] = {}
 
     def merge(pairs: list[tuple[int, float]]) -> None:
@@ -202,6 +248,7 @@ def _run_agent(
 
     # 1. analyse
     analysis = _analyse(counter, query, trace)
+    check()
     subquestions = analysis.subquestions or [query]
 
     scored: dict[tuple[str, int], float] = {}  # (query text, chunk) -> CE score
@@ -216,6 +263,7 @@ def _run_agent(
 
     # 2 + 3. write query + search for each sub-question
     for subq in subquestions:
+        check()
         if _now() > deadline:
             break
         is_sub = bool(analysis.subquestions)
@@ -236,6 +284,7 @@ def _run_agent(
     if settings.agent_adaptive_sufficiency and analysis.qtype == "simple":
         max_rounds = min(max_rounds, 1 + settings.agent_max_extra_rounds_simple)
     while rounds < max_rounds and counter.remaining > 2 and _now() <= deadline:
+        check()
         if settings.agent_adaptive_sufficiency and best_by_sub and \
                 min(best_by_sub) >= settings.agent_coverage_min_score:
             trace.append({
@@ -246,13 +295,17 @@ def _run_agent(
             })
             break
         t0 = _now()
-        with llm_role("sufficiency"):
-            suff = call_json(
-                counter,
-                load("sufficiency").replace("{question}", query)
-                .replace("{context}", _context_for_sufficiency(candidates)),
-                Sufficiency, cache_role="sufficiency",
-            )
+        try:
+            with llm_role("sufficiency"):
+                suff = call_json(
+                    counter,
+                    load("sufficiency").replace("{question}", query)
+                    .replace("{context}", _context_for_sufficiency(candidates)),
+                    Sufficiency, cache_role="sufficiency",
+                )
+        except LLMError as exc:  # stop looping, answer from what was found
+            _helper_failed(exc, "sufficiency", trace)
+            break
         if suff is None:
             break
         trace.append({
@@ -305,23 +358,38 @@ def _run_agent(
 
     infos = hydrate.fetch_chunks([c for c, _ in final])
     sources = build_sources(final, infos)
+    from app.retrieval.service import sources_payload
+
+    check()
     t0 = _now()
-    answer, citations = generate_answer(
-        query, sources, llm=counter, temperature=settings.agent_answer_temperature
-    )
+    if emit is None:
+        answer, citations = generate_answer(
+            query, sources, llm=counter, temperature=settings.agent_answer_temperature
+        )
+    else:  # AI Mode: show the sources, then stream the same answer prompt
+        emit("sources", {"sources": sources_payload(sources, query)})
+        done = None
+        for kind, payload in stream_answer(query, sources, llm=counter,
+                                           temperature=settings.agent_answer_temperature,
+                                           mode="hybrid_rerank", cancel=cancel):
+            if kind == "token":
+                emit("token", {"t": payload})
+            else:
+                done = payload
+        if done is None:
+            raise AgentCancelled()
+        answer, citations = done["answer"], done["citations"]
     trace.append({
         "step": "answer", "input": query, "output": answer[:300],
         "duration_ms": int((_now() - t0) * 1000),
     })
-
-    from app.retrieval.service import sources_payload
 
     return {
         "mode": "agentic",
         "answer": answer,
         "citations": citations,
         "sources": sources_payload(sources, query),
-        "trace": trace,
+        "trace": list(trace),
         "rewritten_query": None,
         "rounds": rounds,
         "llm_calls": counter.n,

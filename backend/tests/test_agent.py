@@ -51,6 +51,11 @@ class ScriptedLLM:
             return self.answer_text
         return "ok"
 
+    def stream_chat(self, messages, temperature=0.0, model=None, cancel=None, **kwargs):
+        text = self.chat(messages, temperature, model, **kwargs)
+        for i in range(0, len(text), 4):  # AI Mode streams the final answer
+            yield text[i:i + 4]
+
 
 def _run(answer_text):
     from app.agent.loop import run_agent

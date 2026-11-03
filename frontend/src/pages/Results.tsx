@@ -30,6 +30,7 @@ export function Results() {
   const clearTimer = useRef<number | undefined>(undefined);
   const startedAt = useRef<number>(0);
   const [autoAnswer, setAutoAnswerState] = useState<boolean>(getAutoAnswer());
+  const [attempt, setAttempt] = useState(0); // "Try again" re-runs the same search
 
   // "Always generate answers": a plain search goes straight to the answer view.
   useEffect(() => {
@@ -64,13 +65,14 @@ export function Results() {
         onReranked: (data) => dispatch({ type: "reranked", data }),
         onSources: (sources) => dispatch({ type: "sources", sources }),
         onStep: (step) => dispatch({ type: "step", step }),
+        onStatus: (data) => dispatch({ type: "status", data }),
         onToken: (text) => dispatch({ type: "token", text }),
         onDone: (data) => dispatch({ type: "done", data }),
-        onError: (e) => dispatch({ type: "error", detail: e.detail || e.error }),
+        onError: (e) => dispatch({ type: "error", data: e }),
       }
     );
     return close; // leaving the page / new query closes the stream (stops generation)
-  }, [q, mode, domain]);
+  }, [q, mode, domain, attempt]);
 
   function onCite(n: number) {
     setHighlight(n);
@@ -133,7 +135,7 @@ export function Results() {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-        {state.phase === "error" && (
+        {state.phase === "error" && mode === "search" && (
           <div className="rounded-2xl border border-lilac-300 bg-mauve-200 p-5">
             <h2 className="font-semibold text-content">{strings.results.errorTitle}</h2>
             <p className="mt-1 text-sm text-content-muted">{state.error}</p>
@@ -171,6 +173,11 @@ export function Results() {
             waiting={answering && !shownAnswer}
             model={state.model}
             cached={state.cached && state.phase === "done"}
+            status={state.status}
+            lastStep={state.steps.length ? state.steps[state.steps.length - 1] : null}
+            error={state.phase === "error" ? state.error : null}
+            errorCode={state.errorCode}
+            onRetry={() => setAttempt((n) => n + 1)}
           />
         ) : null}
 

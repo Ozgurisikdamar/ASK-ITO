@@ -70,15 +70,33 @@ def test_unhandled_exception_handler_is_generic(monkeypatch):
 
 def test_busy_when_a_generation_is_running(monkeypatch):
     monkeypatch.setattr(settings, "max_concurrent_generations", 1)
+    monkeypatch.setattr(settings, "generation_wait_s", 0.3)
     assert errors.generation_limiter.try_acquire()
     try:
         c = TestClient(app)
         r = c.post("/api/search", json={"query": "x", "mode": "overview"})
         assert r.status_code == 429 and r.json()["error"] == "busy"
         ev = _events(c.get("/api/search/stream", params={"q": "x", "mode": "overview"}).text)
-        assert ev == [("error", ev[0][1])] and ev[0][1]["error"] == "busy"
+        # it waits (queued) for the running answer, then reports busy
+        assert [e for e, _ in ev] == ["status", "error"]
+        assert ev[0][1]["stage"] == "queued" and ev[1][1]["error"] == "busy"
+        assert ev[1][1]["rid"] == ev[0][1]["rid"]
     finally:
         errors.generation_limiter.release()
+    assert errors.generation_limiter.active == 0
+
+
+def test_queued_request_runs_once_the_slot_frees(monkeypatch):
+    import threading as th
+
+    monkeypatch.setattr(settings, "generation_wait_s", 5)
+    monkeypatch.setattr(stream_api, "produce",
+                        lambda q, m, d, c: iter([("done", {"answer": "ok"})]))
+    assert errors.generation_limiter.try_acquire()
+    th.Timer(0.5, errors.generation_limiter.release).start()  # the old answer stops
+    ev = _events(TestClient(app).get("/api/search/stream",
+                                     params={"q": "x", "mode": "overview"}).text)
+    assert [e for e, _ in ev] == ["status", "done"] and ev[1][1]["answer"] == "ok"
     assert errors.generation_limiter.active == 0
 
 
@@ -97,16 +115,53 @@ def test_search_mode_is_never_limited(monkeypatch):
 
 # -- cancellation -----------------------------------------------------------------
 
-def test_client_disconnect_cancels_generation(monkeypatch):
+def _serve(app_):
+    """Run the real ASGI app under uvicorn on a free port (disconnects behave as in
+    production, unlike calling the generator by hand)."""
+    import socket
+    import threading as th
+
+    import uvicorn
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    # loop="none": no global event-loop policy change (uvloop) that would leak into
+    # other tests; the server gets its own loop in its own thread (asyncio.run may
+    # be patched by nest_asyncio once RAGAS has been imported).
+    server = uvicorn.Server(uvicorn.Config(app_, host="127.0.0.1", port=port, loop="none",
+                                           log_level="warning", lifespan="off"))
+
+    def run() -> None:
+        import asyncio
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(server.serve())
+        finally:
+            loop.close()
+
+    th.Thread(target=run, daemon=True).start()
+    deadline = time.time() + 10
+    while not server.started and time.time() < deadline:
+        time.sleep(0.05)
+    return server, f"http://127.0.0.1:{port}"
+
+
+def test_client_disconnect_cancels_generation_and_frees_the_slot(monkeypatch):
+    """Regression: closing the browser stream (e.g. switching to AI Mode while an
+    answer was generating) used to leave the generation slot taken for good, so
+    every later answer request reported "busy" until a restart."""
+    import httpx
+
     seen = {}
 
     def slow_produce(q, mode, domain, cancel):
-        # The worker stops pulling on cancel and closes this generator; in the real
-        # path that closes stream_answer -> llm.stream_chat -> the HTTP stream.
         i = 0
         try:
             yield "results", {"results": [], "total": 0}
-            for i in range(500):  # a long answer
+            for i in range(3000):  # a long answer (30 s)
                 if cancel.is_set():
                     return
                 time.sleep(0.01)
@@ -117,16 +172,51 @@ def test_client_disconnect_cancels_generation(monkeypatch):
     monkeypatch.setattr(stream_api, "produce", slow_produce)
     from app.warmup import activity
 
-    gen = stream_api.event_stream("q", "overview", "all")
-    first = next(gen)
-    assert first.startswith("event: results")
-    assert errors.generation_limiter.active == 1
-    gen.close()  # what Starlette does when the client goes away
-    deadline = time.time() + 5
-    while "cancelled_at" not in seen and time.time() < deadline:
-        time.sleep(0.02)
-    assert seen.get("cancelled_at", 500) < 500  # stopped early
-    assert errors.generation_limiter.active == 0 and activity.idle.is_set()
+    import gc
+
+    # An idle production server rarely runs the cyclic garbage collector; the old
+    # code only released the slot when the abandoned generator was collected.
+    gc.disable()
+    server, base = _serve(app)
+    try:
+        with httpx.stream("GET", f"{base}/api/search/stream",
+                          params={"q": "q", "mode": "overview"}, timeout=10) as r:
+            for line in r.iter_lines():
+                if line.startswith("event: token"):
+                    break  # the browser goes away mid-answer
+        deadline = time.time() + 5
+        while (errors.generation_limiter.active or "cancelled_at" not in seen) \
+                and time.time() < deadline:
+            time.sleep(0.05)
+        assert seen.get("cancelled_at", 3000) < 3000  # stopped early
+        assert errors.generation_limiter.active == 0 and activity.idle.is_set()
+        # and the next answer request is not "busy"
+        monkeypatch.setattr(stream_api, "produce",
+                            lambda q, m, d, c: iter([("done", {"answer": "ok"})]))
+        text = httpx.get(f"{base}/api/search/stream",
+                         params={"q": "q", "mode": "agentic"}, timeout=10).text
+        assert "event: done" in text and "busy" not in text
+    finally:
+        gc.enable()
+        server.should_exit = True
+
+
+def test_llm_errors_reach_the_client_classified(monkeypatch):
+    from app.llm.client import LLMError
+
+    def failing(q, mode, domain, cancel):
+        yield "results", {"results": [], "total": 0}
+        raise LLMError("HTTP 500: model requires more system memory (11 GiB) than is "
+                       "available (7 GiB)", "model_memory")
+
+    monkeypatch.setattr(stream_api, "produce", failing)
+    ev = _events(TestClient(app).get("/api/search/stream",
+                                     params={"q": "x", "mode": "agentic"}).text)
+    assert [e for e, _ in ev] == ["results", "error"]
+    err = ev[1][1]
+    assert err["error"] == "model_memory" and "memory" in err["message"]
+    assert "11 GiB" not in json.dumps(err) and err["rid"] == ev[0][1]["rid"]
+    assert errors.generation_limiter.active == 0
 
 
 def test_stream_answer_honours_cancel_mid_stream():

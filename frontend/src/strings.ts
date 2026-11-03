@@ -8,6 +8,9 @@ export const strings = {
   searchPlaceholder: "Ask anything about recent Nobel Prizes or quantum computing…",
   searchAria: "Search query",
   submit: "Search",
+  ask: "Ask",
+  aiModeHint:
+    "AI Mode: a cited answer from a local model. Simple questions get one answer; comparisons and multi-part questions run a step-by-step search first.",
   modes: {
     search: "Search",
     answer: "AI answer",
@@ -77,6 +80,30 @@ export const strings = {
     searching: "Searching…",
     notFoundPhrase: "could not find",
     noAnswer: "No answer was produced.",
+    answerFailed: "The AI answer could not be generated.",
+    answerInterrupted: "The answer was interrupted.",
+    retry: "Try again",
+    queued: "Waiting for the previous answer to stop…",
+    modelLoading: (model: string, s: number) =>
+      `Loading the local model${model ? ` (${model})` : ""} into memory… ${Math.floor(s / 60)}:${String(
+        Math.round(s % 60),
+      ).padStart(2, "0")} elapsed. The first load after a restart can take several minutes.`,
+    agentStep: (step: string, input: unknown) => {
+      const q = typeof input === "string" && input ? `: ${input.slice(0, 80)}` : "";
+      const label: Record<string, string> = {
+        analyze: "Analysing the question",
+        rewrite: "Writing a search query",
+        search: "Searching the corpus",
+        bm25: "Searching the corpus",
+        vector: "Searching the corpus",
+        rrf: "Searching the corpus",
+        rerank: "Ranking passages",
+        sufficiency: "Checking whether the evidence is enough",
+        final_rerank: "Choosing the best passages",
+        llm_error: "A step took too long; continuing with what was found",
+      };
+      return `${label[step] ?? "Working"}${step === "search" || step === "rewrite" ? q : ""}…`;
+    },
     errorTitle: "Something went wrong",
     sourceAria: (n: number) => `Jump to source ${n}`,
     openWiki: "Wikipedia",

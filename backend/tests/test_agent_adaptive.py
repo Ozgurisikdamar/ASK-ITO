@@ -177,3 +177,64 @@ def test_duplicate_subquestions_are_dropped():
     res = _run(llm=DupLLM("A [1]."))
     assert "subquestion_skipped" in _steps(res)
     assert _roles(res)["rewrite"]["calls"] == 1
+
+
+# -- AI Mode streaming, cancellation and model errors -------------------------------
+
+def test_emit_streams_steps_sources_and_answer_tokens():
+    from app.agent.loop import run_agent
+    from app.retrieval import pipeline
+
+    events = []
+    pipeline.cache_clear()
+    res = run_agent(HOPFIELD_Q, domain="all", final_k=5, llm=ScriptedLLM("A [1]. B [2]."),
+                    emit=lambda ev, data: events.append((ev, data)))
+    kinds = [e for e, _ in events]
+    assert kinds[0] == "step" and "sources" in kinds and "token" in kinds
+    # steps arrive before the sources, and the answer after them
+    assert kinds.index("sources") < kinds.index("token")
+    assert "".join(d["t"] for e, d in events if e == "token").strip() == "A [1]. B [2]."
+    assert res["answer"] == "A [1]. B [2]." and res["llm_calls"] >= 2
+    assert len([e for e in kinds if e == "step"]) == len(res["trace"])
+
+
+def test_cancel_stops_the_agent_between_steps():
+    import threading
+
+    from app.agent.loop import AgentCancelled, run_agent
+
+    cancel = threading.Event()
+    llm = ScriptedLLM("A [1].")
+    seen = []
+
+    def emit(ev, data):
+        seen.append(ev)
+        if ev == "step" and data["step"] == "analyze":
+            cancel.set()  # the browser went away after the analysis
+
+    with pytest.raises(AgentCancelled):
+        run_agent(HOPFIELD_Q, domain="all", final_k=5, llm=llm, cancel=cancel, emit=emit)
+    assert llm.calls == 1 and "token" not in seen  # only the analysis call ran
+
+
+def test_helper_timeout_degrades_but_fatal_errors_stop():
+    from app.agent.loop import run_agent
+    from app.llm.client import LLMError
+
+    class TimeoutAnalysis(ScriptedLLM):
+        def chat(self, messages, temperature=0.0, model=None, **kwargs):
+            if "Analyse the user's question" in messages[-1]["content"]:
+                self.calls += 1
+                raise LLMError("slow", "model_timeout")
+            return super().chat(messages, temperature, model, **kwargs)
+
+    res = _run(SIMPLE_Q, TimeoutAnalysis("A [1]."))
+    assert "llm_error" in _steps(res) and res["answer"] == "A [1]."
+
+    class NoMemory(ScriptedLLM):
+        def chat(self, messages, temperature=0.0, model=None, **kwargs):
+            raise LLMError("model requires more system memory", "model_memory")
+
+    with pytest.raises(LLMError) as err:
+        run_agent(SIMPLE_Q, domain="all", final_k=5, llm=NoMemory("x"))
+    assert err.value.code == "model_memory"

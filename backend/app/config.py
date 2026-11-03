@@ -51,7 +51,11 @@ class Settings(BaseSettings):
     llm_keep_alive: str = "24h"  # keep the Ollama model loaded in RAM
     llm_num_ctx: int = 4096
     llm_num_thread: int = 0  # 0 = Ollama default
-    llm_timeout_s: float = 240.0
+    llm_timeout_s: float = 240.0  # per generation request, after the model is loaded
+    # Loading the model is separate: a cold Q8_0 load measured 689 s on a CPU sandbox
+    # with a cold disk cache (12.5 MB/s reads). Matches OLLAMA_LOAD_TIMEOUT=30m.
+    llm_load_timeout_s: float = 1800.0
+    llm_load_poll_s: float = 3.0  # progress interval while waiting for a load
     llm_connect_timeout_s: float = 5.0
     llm_ping_timeout_s: float = 2.0
     llm_max_retries: int = 2  # on 429 / 5xx
@@ -178,6 +182,9 @@ class Settings(BaseSettings):
     # Requests allowed to run an LLM at the same time (search needs none). A local
     # model serves one request at a time; extra answer requests get "busy".
     max_concurrent_generations: int = 1
+    # A new answer request waits this long for a slot (the previous answer may still
+    # be stopping after the user switched modes) before reporting "busy".
+    generation_wait_s: float = 20.0
 
     # Test set generation (M7)
     testset_target: int = 180  # total draft questions to aim for
