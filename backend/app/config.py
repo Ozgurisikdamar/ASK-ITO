@@ -169,7 +169,7 @@ class Settings(BaseSettings):
     answer_context_chars: int = 900
     answer_max_tokens: int = 600
     answer_cache_enabled: bool = True
-    prompt_version: str = "v3"  # part of the answer-cache key (bump on prompt changes)
+    prompt_version: str = "v4"  # part of the answer-cache key (bump on prompt changes)
 
     # Startup
     warmup_on_start: bool = True
