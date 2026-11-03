@@ -1,0 +1,233 @@
+{
+  "recorded_at": "2026-11-03T07:46:25+00:00",
+  "hardware": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "logical_cpus": 4,
+    "ram_gb": 15.7,
+    "os": "Linux 6.18.44-fc-v230",
+    "python": "3.13.17"
+  },
+  "reranker": "BAAI/bge-reranker-base",
+  "rerank_pool": 20,
+  "rerank_max_length": 512,
+  "configured_threshold": 0.3,
+  "rows": [
+    {
+      "group": "answerable",
+      "question": "Which came first, the 2022 or 2023 Nobel Prize in Physics, and what did each cover?",
+      "top_score": 0.9993605017662048
+    },
+    {
+      "group": "answerable",
+      "question": "How do convolutional neural networks and Transformers differ in processing their input?",
+      "top_score": 0.9992271661758423
+    },
+    {
+      "group": "answerable",
+      "question": "The 2024 Physics laureate Geoffrey Hinton is associated with which stochastic neural network cited in the prize's background?",
+      "top_score": 0.9997935891151428
+    },
+    {
+      "group": "answerable",
+      "question": "The 2025 Physics Nobel involved macroscopic quantum tunneling demonstrated in which kind of superconducting element?",
+      "top_score": 0.9975472092628479
+    },
+    {
+      "group": "answerable",
+      "question": "Which family of large language models is built on the Transformer and exemplifies generative AI?",
+      "top_score": 0.9835460186004639
+    },
+    {
+      "group": "answerable",
+      "question": "What is quantum error correction and why is it needed?",
+      "top_score": 0.999852180480957
+    },
+    {
+      "group": "answerable",
+      "question": "Who shared the 2025 Nobel Prize in Physics and for what?",
+      "top_score": 0.9997450709342957
+    },
+    {
+      "group": "answerable",
+      "question": "What was the 2026 Nobel Prize in Physics awarded for?",
+      "top_score": 0.99973064661026
+    },
+    {
+      "group": "answerable",
+      "question": "Which three scientists shared the 2022 Nobel Prize in Physics?",
+      "top_score": 0.9997929930686951
+    },
+    {
+      "group": "answerable",
+      "question": "What problem does Shor's algorithm solve efficiently on a quantum computer?",
+      "top_score": 0.9999333620071411
+    },
+    {
+      "group": "answerable",
+      "question": "What method did the 2020 Nobel Prize in Chemistry recognize for Charpentier and Doudna?",
+      "top_score": 0.9997850060462952
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "Who won the 2023 Nobel Prize in Literature and for which works?",
+      "top_score": 0.04746738076210022
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "Which organisation received the 2024 Nobel Peace Prize?",
+      "top_score": 0.9891074299812317
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "What did Claudia Goldin win the Nobel Prize in Economic Sciences for?",
+      "top_score": 0.3548153042793274
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "Which novels by Han Kang were cited when she received the Nobel Prize?",
+      "top_score": 0.7114364504814148
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "What was the exact three-course menu served at the 2025 Nobel Prize banquet in Stockholm?",
+      "top_score": 0.8578957319259644
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "How many hours per day does Geoffrey Hinton personally spend exercising?",
+      "top_score": 0.9901044964790344
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "Who won the 2021 Nobel Prize in Literature?",
+      "top_score": 0.06143232807517052
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "What was Annie Ernaux awarded the Nobel Prize in Literature for?",
+      "top_score": 0.40834417939186096
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "Why was Narges Mohammadi awarded the 2023 Nobel Peace Prize?",
+      "top_score": 0.017987800762057304
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "What did Daron Acemoglu win the 2024 Nobel Prize in Economic Sciences for?",
+      "top_score": 0.10182962566614151
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "What is the name of Geoffrey Hinton's dog?",
+      "top_score": 0.8961644172668457
+    },
+    {
+      "group": "near_domain_unsupported",
+      "question": "Which organisations shared the 2022 Nobel Peace Prize with Ales Bialiatski?",
+      "top_score": 0.010773589834570885
+    },
+    {
+      "group": "out_of_domain",
+      "question": "How do you make a sourdough starter at home?",
+      "top_score": 0.001036910805851221
+    },
+    {
+      "group": "out_of_domain",
+      "question": "What is the current price of Bitcoin in US dollars?",
+      "top_score": 0.04206452891230583
+    },
+    {
+      "group": "out_of_domain",
+      "question": "Who painted the Mona Lisa and in which museum is it displayed?",
+      "top_score": 0.0503632128238678
+    },
+    {
+      "group": "out_of_domain",
+      "question": "What is the population of Lisbon?",
+      "top_score": 0.012786022387444973
+    },
+    {
+      "group": "out_of_domain",
+      "question": "How tall is the Burj Khalifa?",
+      "top_score": 0.0042463368736207485
+    },
+    {
+      "group": "out_of_domain",
+      "question": "What is the smoke point of extra virgin olive oil?",
+      "top_score": 0.002280621323734522
+    }
+  ],
+  "by_threshold": {
+    "0.05": {
+      "answerable": {
+        "n": 11,
+        "pass_to_llm": 11
+      },
+      "near_domain_unsupported": {
+        "n": 12,
+        "pass_to_llm": 9
+      },
+      "out_of_domain": {
+        "n": 6,
+        "pass_to_llm": 1
+      }
+    },
+    "0.1": {
+      "answerable": {
+        "n": 11,
+        "pass_to_llm": 11
+      },
+      "near_domain_unsupported": {
+        "n": 12,
+        "pass_to_llm": 8
+      },
+      "out_of_domain": {
+        "n": 6,
+        "pass_to_llm": 0
+      }
+    },
+    "0.3": {
+      "answerable": {
+        "n": 11,
+        "pass_to_llm": 11
+      },
+      "near_domain_unsupported": {
+        "n": 12,
+        "pass_to_llm": 7
+      },
+      "out_of_domain": {
+        "n": 6,
+        "pass_to_llm": 0
+      }
+    },
+    "0.5": {
+      "answerable": {
+        "n": 11,
+        "pass_to_llm": 11
+      },
+      "near_domain_unsupported": {
+        "n": 12,
+        "pass_to_llm": 5
+      },
+      "out_of_domain": {
+        "n": 6,
+        "pass_to_llm": 0
+      }
+    },
+    "0.7": {
+      "answerable": {
+        "n": 11,
+        "pass_to_llm": 11
+      },
+      "near_domain_unsupported": {
+        "n": 12,
+        "pass_to_llm": 5
+      },
+      "out_of_domain": {
+        "n": 6,
+        "pass_to_llm": 0
+      }
+    }
+  }
+}
