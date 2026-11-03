@@ -164,10 +164,17 @@ caches. Outside Docker it is off (`REDIS_ENABLED=false`).
 After changing `.env` run `./askito model` (if the model is new) and
 `./askito restart`.
 
+*Memory.* Measured on a CPU-only 15.7 GB sandbox (Ollama process RSS while
+answering): Q8_0 `qwen3.5:9b-q8_0` peaked at 12.3 GB, Q4_K_M `qwen3.5:9b` at
+7.7 GB; the runner's in-memory prompt cache grows with use. The backend's
+embedding and reranker models need about 1–2 GB more. On that 15.7 GB machine
+Q8_0 plus an agent run was killed by the out-of-memory killer (runner at
+13.0 GB), so plan for well over 16 GB for Q8_0 — or use the Q4_K_M rollback
+(`LLM_DEFAULT_MODEL=qwen3.5:9b-q4_K_M`). Check with `ollama ps` and the
+process RSS on your own machine.
+
 *Windows / Docker Desktop memory:* WSL 2 gives Docker about half of the host
-RAM by default. With qwen3.5:9b loaded the Ollama processes used 9–11 GB RSS
-in our runs (measured); if that does not fit, or you use a larger model, raise
-the limit in
+RAM by default. If the model does not fit, raise the limit in
 `%UserProfile%\.wslconfig`, then run `wsl --shutdown` and restart Docker Desktop:
 
 ```ini
