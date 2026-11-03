@@ -215,6 +215,10 @@ the elapsed time; the load runs in one shared background request
 (`LLM_LOAD_TIMEOUT_S`, default 30 min), so leaving the page does not abort it.
 Q4_K_M (`qwen3.5:9b-q4_K_M`) is kept only as an explicit benchmark /
 troubleshooting option; nothing switches to it automatically.
+If the system killed the model runner while it was idle (out of memory),
+Ollama 0.40 can keep listing the model while every request waits for it; the
+UI then shows "Loading the local model…" until `LLM_LOAD_TIMEOUT_S`. Restart
+Ollama (`docker compose restart ollama`) after freeing memory.
 
 *Docker Desktop on macOS.* Docker Desktop runs Linux containers in a VM without
 GPU access, so the `ollama` service runs CPU-only there, inside the VM's memory

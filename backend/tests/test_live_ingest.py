@@ -7,9 +7,11 @@ real pgvector + BM25), and is skipped when such a copy cannot be created."""
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 import httpx
@@ -244,12 +246,34 @@ def _copy_db():
     return name if r.returncode == 0 else None
 
 
+def _redis_server():
+    """A throwaway loopback redis-server for the cache checks (None if absent)."""
+    exe = shutil.which("redis-server")
+    if exe is None:
+        return None, None
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    proc = subprocess.Popen([exe, "--port", str(port), "--bind", "127.0.0.1", "--save", "",
+                             "--appendonly", "no"], stdout=subprocess.DEVNULL)
+    for _ in range(50):
+        with socket.socket() as s:
+            if s.connect_ex(("127.0.0.1", port)) == 0:
+                break
+        time.sleep(0.1)
+    return proc, f"redis://127.0.0.1:{port}/0"
+
+
 @pytest.mark.skipif(not os.environ.get("ASKITO_LIVE_DB_TEST"),
                     reason="set ASKITO_LIVE_DB_TEST=1 (needs a copyable local database)")
 def test_ingested_article_is_found_by_dense_and_bm25(tmp_path):
+    """After an ingestion the new chunks are found by BM25 and pgvector, and no
+    cache serves a pre-ingestion result: retrieval L1 and Redis L2 miss, the
+    answer cache key changes, the in-memory chunk store reloads."""
     name = _copy_db()
     if name is None:
         pytest.skip("cannot copy the database")
+    redis_proc, redis_url = _redis_server()
     bm25 = tmp_path / "bm25"
     shutil.copytree(Path(__file__).resolve().parents[1] / "data" / "bm25", bm25)
     url = settings.database_url.rsplit("/", 1)[0] + f"/{name}"
@@ -267,17 +291,42 @@ def test_ingested_article_is_found_by_dense_and_bm25(tmp_path):
                 return PageResult(requested_title=t, pageid=990000001, revid=1, title=t,
                                   url="https://en.wikipedia.org/wiki/Zorblax", extract=text)
             def close(self): pass
+        from app.redis_cache import cache
+        from app.retrieval import answer_cache
+        from app.retrieval.store import store
+        q = "zorblax flux capacitor"
         before = pipeline.retrieval_fingerprint("search")
+        answer_key = answer_cache.make_key(q, "overview", "all")
+        pipeline.run_retrieval(q, "search", domain="all")  # cached in L1 (+ L2)
+        warm = pipeline.run_retrieval(q, "search", domain="all")
+        pipeline.cache_clear()
+        warm_l2 = pipeline.run_retrieval(q, "search", domain="all")
+        store.ensure_loaded()
+        n_before = len(store._chunks)
         res = live.ingest_for_query("zorblax", client=Wiki(), save_raw=False)
-        bm = [c for c, _ in bm25_search("zorblax flux capacitor", 5)]
-        vec = [c for c, _ in vector_search("zorblax flux capacitor", 5)]
+        bm = [c for c, _ in bm25_search(q, 5)]
+        vec = [c for c, _ in vector_search(q, 5)]
+        after = pipeline.run_retrieval(q, "search", domain="all")  # old L1 entry present
+        pipeline.cache_clear()
+        after_l2 = pipeline.run_retrieval(q, "search", domain="all")  # only Redis left
+        store.ensure_loaded()
         again = live.ingest_for_query("zorblax", client=Wiki(), save_raw=False)
         print(json.dumps({"added": res.added, "bm25": bm, "vector": vec,
                           "again": again.skipped,
-                          "version_changed": before != pipeline.retrieval_fingerprint("search")}))
+                          "version_changed": before != pipeline.retrieval_fingerprint("search"),
+                          "answer_key_changed":
+                              answer_key != answer_cache.make_key(q, "overview", "all"),
+                          "redis": cache.enabled and cache.status()["available"],
+                          "warm": [warm.cached, warm.cache_tier],
+                          "warm_l2": [warm_l2.cached, warm_l2.cache_tier],
+                          "after": [after.cached, [c for c, _ in after.final]],
+                          "after_l2": [after_l2.cached, after_l2.cache_tier],
+                          "store_grew": len(store._chunks) - n_before}))
     ''')
     env = {**os.environ, "DATABASE_URL": url, "ASKITO_BM25_DIR": str(bm25),
-           "LLM_MODE": "mock", "WARMUP_ON_START": "false", "REDIS_ENABLED": "false"}
+           "LLM_MODE": "mock", "WARMUP_ON_START": "false", "SEARCH_RERANK": "false",
+           "REDIS_ENABLED": "true" if redis_url else "false",
+           "REDIS_URL": redis_url or "redis://127.0.0.1:1/0"}
     try:
         r = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1],
                            env=env, capture_output=True, text=True, timeout=600)
@@ -291,8 +340,18 @@ def test_ingested_article_is_found_by_dense_and_bm25(tmp_path):
                 "SELECT c.id FROM chunks c JOIN documents d ON d.id = c.doc_id "
                 "WHERE d.pageid = 990000001 AND d.origin = 'dynamic'").fetchall()}
         assert new_ids & set(out["bm25"]) and new_ids & set(out["vector"])
-        assert out["version_changed"]
+        assert out["version_changed"] and out["answer_key_changed"]
+        assert out["warm"] == [True, "l1"]
+        # the result cached before the ingestion is not served afterwards
+        assert out["after"][0] is False and new_ids & set(out["after"][1])
+        assert out["store_grew"] == len(new_ids)
+        if redis_url:
+            assert out["redis"] and out["warm_l2"] == [True, "l2"]
+            assert out["after_l2"] == [True, "l2"]  # the new, post-ingestion entry
         assert out["again"] == [{"title": "Zorblax device", "reason": "already in the corpus"}]
     finally:
         subprocess.run(["su", "postgres", "-c", f'psql -c "DROP DATABASE IF EXISTS {name}"'],
                        capture_output=True)
+        if redis_proc:
+            redis_proc.terminate()
+            redis_proc.wait(timeout=10)
