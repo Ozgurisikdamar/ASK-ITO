@@ -5,10 +5,16 @@ CPU, RAM, GPUs found by the vendor tools (nvidia-smi, rocm-smi) or the platform
 (Apple Silicon), and, from the running Ollama, how much of each loaded model
 sits in VRAM (`/api/ps` size_vram vs size). The verdict is one of:
   cpu_only            no GPU found; inference runs on the CPU
-  gpu_present_unused  a GPU exists but no loaded model uses VRAM
+  gpu_present_unused  a GPU exists but no loaded model uses it
   gpu_partial         part of the model is in VRAM (layer split CPU/GPU)
   gpu_full            the whole loaded model is in VRAM
   unknown             no model loaded / Ollama unreachable, GPU state only
+
+`size_vram` alone is not evidence of GPU offload: Ollama 0.40 also counts CPU
+"extra" weight buffers (e.g. the AMX repacked buffer on Intel Xeon) as VRAM, so
+`ollama ps` can show "18%/82% CPU/GPU" on a machine without any GPU. A GPU
+verdict therefore needs a GPU device found by the vendor tools AND, when the
+server log is available, a GPU runner library in its "inference compute" lines.
 """
 from __future__ import annotations
 
@@ -100,7 +106,26 @@ def ollama_offload(ps_models: list[dict]) -> list[dict]:
     return out
 
 
-def verdict(found_gpus: list[dict], offload: list[dict]) -> str:
+_GPU_LIBS = {"cuda", "rocm", "metal", "vulkan"}
+
+
+def log_compute_libraries(log_text: str) -> set[str] | None:
+    """Runner libraries from the last server start in the Ollama log
+    ('msg="inference compute" ... library=cpu'); None if not found."""
+    import re
+
+    start = log_text.rfind('msg="server config"')
+    tail = log_text[start:] if start >= 0 else log_text
+    libs = set(re.findall(r'msg="inference compute".*?library=(\w+)', tail))
+    return {lib.lower() for lib in libs} or None
+
+
+def verdict(found_gpus: list[dict], offload: list[dict],
+            compute_libs: set[str] | None = None) -> str:
+    if not found_gpus:
+        return "cpu_only"  # size_vram without a GPU device is not GPU offload
+    if compute_libs is not None and not (compute_libs & _GPU_LIBS):
+        return "gpu_present_unused"
     if offload:
         frac = max((o["vram_fraction"] or 0) for o in offload)
         if frac >= 0.999:
@@ -111,8 +136,16 @@ def verdict(found_gpus: list[dict], offload: list[dict]) -> str:
     return "unknown" if found_gpus else "cpu_only"
 
 
-def diagnose(ps_models: list[dict] | None, run=_run) -> dict:
+def diagnose(ps_models: list[dict] | None, run=_run, log_text: str | None = None) -> dict:
     found = gpus(run)
     offload = ollama_offload(ps_models or [])
+    libs = log_compute_libraries(log_text) if log_text else None
+    notes = []
+    if not found and any(o["vram_mb"] for o in offload):
+        notes.append("Ollama reports size_vram > 0 but no GPU device was found: this "
+                     "runtime counts CPU extra buffers (e.g. AMX) as VRAM; not GPU offload")
+    if libs is not None:
+        notes.append(f"runner libraries from the Ollama log: {sorted(libs)}")
     return {"host": cpu_ram(), "gpus": found, "device_nodes": device_nodes(),
-            "ollama_loaded": offload, "verdict": verdict(found, offload)}
+            "ollama_loaded": offload, "compute_libraries": sorted(libs) if libs else None,
+            "verdict": verdict(found, offload, libs), "notes": notes}

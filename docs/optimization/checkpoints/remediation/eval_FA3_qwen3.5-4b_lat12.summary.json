@@ -1,0 +1,199 @@
+{
+  "label": "FA3_qwen3.5-4b_lat12",
+  "status": "RUN",
+  "planned": 12,
+  "completed": 12,
+  "error_records": 0,
+  "config": {
+    "mode": "overview",
+    "llm_mode": "ollama",
+    "models": {
+      "agent": "qwen3.5:4b",
+      "answer": "qwen3.5:4b",
+      "judge": "qwen3.5:4b"
+    },
+    "llm_think": false,
+    "llm_num_ctx": 4096,
+    "llm_num_thread": "ollama default",
+    "llm_keep_alive": "24h",
+    "llm_timeout_s": 240.0,
+    "reranker_model": "BAAI/bge-reranker-base",
+    "rerank_pool": 20,
+    "rerank_max_length": 512,
+    "hnsw_ef_search": 100,
+    "final_k": 5,
+    "agent_max_rounds": 3,
+    "agent_max_llm_calls": 10,
+    "agent_timeout_s": 180,
+    "answer_context_chars": 900,
+    "overrides": {}
+  },
+  "model": {
+    "ollama_version": "0.40.12",
+    "model": "qwen3.5:4b",
+    "digest": "d8b0f5e9760cd1682034f292d7ef72ec46f432149be0df7574bf2d6e92e38c04",
+    "quantization": "Q4_K_M",
+    "parameter_size": "4.2B",
+    "family": "qwen35",
+    "format": "gguf",
+    "capabilities": [
+      "completion",
+      "vision",
+      "tools",
+      "thinking"
+    ],
+    "context_length": 262144
+  },
+  "warmup": {
+    "retrieval_models_s": 7.08,
+    "model_load_s": 310.89,
+    "model_load_ollama_ms": 0.0,
+    "llm_first_call_s": 0.79,
+    "llm_first_call_load_ms": 1.0
+  },
+  "header": {
+    "kind": "header",
+    "started_at": "2026-11-03T07:15:21+00:00",
+    "git_sha": "4433ebd",
+    "hardware": {
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+      "logical_cpus": 4,
+      "ram_gb": 15.7,
+      "os": "Linux 6.18.44-fc-v230",
+      "python": "3.13.17"
+    },
+    "benchmark": "eval",
+    "label": "FA3_qwen3.5-4b_lat12",
+    "config": {
+      "mode": "overview",
+      "llm_mode": "ollama",
+      "models": {
+        "agent": "qwen3.5:4b",
+        "answer": "qwen3.5:4b",
+        "judge": "qwen3.5:4b"
+      },
+      "llm_think": false,
+      "llm_num_ctx": 4096,
+      "llm_num_thread": "ollama default",
+      "llm_keep_alive": "24h",
+      "llm_timeout_s": 240.0,
+      "reranker_model": "BAAI/bge-reranker-base",
+      "rerank_pool": 20,
+      "rerank_max_length": 512,
+      "hnsw_ef_search": 100,
+      "final_k": 5,
+      "agent_max_rounds": 3,
+      "agent_max_llm_calls": 10,
+      "agent_timeout_s": 180,
+      "answer_context_chars": 900,
+      "overrides": {}
+    },
+    "model": {
+      "ollama_version": "0.40.12",
+      "model": "qwen3.5:4b",
+      "digest": "d8b0f5e9760cd1682034f292d7ef72ec46f432149be0df7574bf2d6e92e38c04",
+      "quantization": "Q4_K_M",
+      "parameter_size": "4.2B",
+      "family": "qwen35",
+      "format": "gguf",
+      "capabilities": [
+        "completion",
+        "vision",
+        "tools",
+        "thinking"
+      ],
+      "context_length": 262144
+    },
+    "questions": "lat12",
+    "n_questions": 12,
+    "reps": 1,
+    "planned_units": 12
+  },
+  "latency_total_ms": {
+    "n": 12,
+    "p50": 30218.3,
+    "p95": 34538.8,
+    "mean": 29848.7,
+    "min": 22043.6,
+    "max": 38768.4,
+    "stdev": 4279.6
+  },
+  "per_rep_total_p50_ms": {
+    "1": 30218.3
+  },
+  "llm_total_ms_per_q": {
+    "n": 12,
+    "p50": 23709.4,
+    "p95": 27845.2,
+    "mean": 23430.7,
+    "min": 16344.5,
+    "max": 31601.2,
+    "stdev": 3883.7
+  },
+  "llm_calls_per_q": {
+    "mean": 1.0,
+    "p95": 1
+  },
+  "llm_ms_by_role": {
+    "overview": {
+      "n": 12,
+      "p50": 23709.4,
+      "p95": 27845.2,
+      "mean": 23430.7,
+      "min": 16344.5,
+      "max": 31601.2,
+      "stdev": 3883.7
+    }
+  },
+  "tokens": {
+    "prompt": {
+      "n": 12,
+      "p50": 861,
+      "p95": 933,
+      "mean": 828.2,
+      "min": 377,
+      "max": 944,
+      "stdev": 143.7
+    },
+    "completion": {
+      "n": 12,
+      "p50": 74,
+      "p95": 102,
+      "mean": 78.1,
+      "min": 53,
+      "max": 112,
+      "stdev": 17.1
+    },
+    "tok_s": {
+      "n": 12,
+      "p50": 6.68,
+      "p95": 6.98,
+      "mean": 6.7,
+      "min": 6.4,
+      "max": 7.05,
+      "stdev": 0.2
+    },
+    "prefill_tok_s": {
+      "n": 12,
+      "p50": 73.69,
+      "p95": 74.81,
+      "mean": 71.6,
+      "min": 62.86,
+      "max": 75.29,
+      "stdev": 4.0
+    }
+  },
+  "resources": {
+    "peak_rss_mb_max": 6058.7,
+    "cpu_pct_mean": 308.2083
+  },
+  "quality_rep1": {
+    "doc_recall@5": 0.6364,
+    "chunk_recall@5": 0.2727,
+    "doc_mrr@10": 0.6742,
+    "doc_ndcg@10": 0.6337,
+    "chunk_ndcg@10": 0.2045,
+    "refusal_correct": 1.0
+  },
+  "n_rep1": 12
+}

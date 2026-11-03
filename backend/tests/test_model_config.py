@@ -54,6 +54,9 @@ def test_compose_redis_is_local_and_never_published():
     assert "--maxmemory-policy" in redis["command"] and "--appendonly" in redis["command"]
     be = svc["backend"]["environment"]
     assert be["REDIS_URL"].startswith("redis://redis:") and be["REDIS_ALLOWED_HOSTS"] == "redis"
+    assert redis["healthcheck"]["test"] == ["CMD", "redis-cli", "ping"]
+    # a Redis outage must not block the backend: start order only, not health
+    assert svc["backend"]["depends_on"]["redis"]["condition"] == "service_started"
 
 
 def test_model_identity_reports_runtime_quantization_and_digest():

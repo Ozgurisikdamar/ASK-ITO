@@ -61,6 +61,14 @@ services:
     image: redis:7.4.5-alpine
     command: ["redis-server", "--save", "", "--appendonly", "no",
               "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # The backend waits only for the container to start, not for it to be
+    # healthy: a Redis outage must never keep the app down (it falls back).
+    stop_grace_period: 5s
     restart: unless-stopped
 
   # Local LLM (default provider). Pull the model once: ./askito model

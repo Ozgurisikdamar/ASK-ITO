@@ -1,0 +1,32 @@
+{
+  "QS_qwen3.5-9b": {
+    "answers_judged": 9,
+    "claims": 24,
+    "claim_support_rate": 0.875,
+    "partial_support_rate": 0.08333333333333333,
+    "unsupported_claim_rate": 0.0,
+    "uncited_claim_rate": 0.041666666666666664,
+    "irrelevant_citation_rate_mean": 0.0,
+    "not_found_answers": 5
+  },
+  "FA3_qwen3.5-9b_lat12": {
+    "answers_judged": 11,
+    "claims": 28,
+    "claim_support_rate": 0.8571428571428571,
+    "partial_support_rate": 0.07142857142857142,
+    "unsupported_claim_rate": 0.0,
+    "uncited_claim_rate": 0.07142857142857142,
+    "irrelevant_citation_rate_mean": 0.0,
+    "not_found_answers": 1
+  },
+  "FA3_qwen3.5-4b_lat12": {
+    "answers_judged": 11,
+    "claims": 25,
+    "claim_support_rate": 0.8,
+    "partial_support_rate": 0.12,
+    "unsupported_claim_rate": 0.0,
+    "uncited_claim_rate": 0.08,
+    "irrelevant_citation_rate_mean": 0.0,
+    "not_found_answers": 1
+  }
+}
