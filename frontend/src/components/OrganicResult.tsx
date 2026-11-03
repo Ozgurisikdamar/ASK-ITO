@@ -6,7 +6,7 @@ import { highlight } from "./highlight";
 export function OrganicResult({ r, query }: { r: ResultItem; query: string }) {
   const crumb = ["en.wikipedia.org", "wiki", r.doc_title].join(" › ");
   return (
-    <article className="max-w-2xl">
+    <article className="max-w-2xl xl:max-w-3xl 2xl:max-w-4xl">
       <div className="mb-0.5 flex items-center gap-2 text-xs text-content-muted">
         <span
           aria-hidden="true"

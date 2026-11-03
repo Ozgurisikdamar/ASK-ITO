@@ -55,7 +55,7 @@ export function Home() {
         <ThemeToggle />
       </header>
 
-      <main className="relative mx-auto flex max-w-2xl flex-col items-center px-4 pt-16 sm:pt-24">
+      <main className="relative mx-auto flex max-w-2xl flex-col items-center px-4 pt-16 sm:pt-24 xl:max-w-3xl 2xl:max-w-4xl">
         <Logo variant="large" />
         <p className="mt-4 text-center text-content-muted">{strings.tagline}</p>
 
@@ -127,7 +127,7 @@ export function Home() {
         </div>
       </main>
 
-      <footer className="relative mx-auto mt-16 max-w-2xl px-4 pb-10 text-center text-sm text-content-muted">
+      <footer className="relative mx-auto mt-16 max-w-2xl px-4 pb-10 text-center text-sm text-content-muted xl:max-w-3xl">
         <a href="/eval" className="text-link hover:underline">
           {strings.evaluationLink}
         </a>

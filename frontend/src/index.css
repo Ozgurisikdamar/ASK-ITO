@@ -50,6 +50,13 @@
   --link: #a78bfa;
 }
 
+/* Scale the whole interface with the window: Tailwind sizes are in rem, so a
+   fluid root font size grows text, spacing and container widths together.
+   16px up to ~1440px wide, then up to 20px on very wide screens. */
+html {
+  font-size: clamp(16px, 0.45vw + 9.5px, 20px);
+}
+
 body {
   margin: 0;
   background-color: var(--surface);

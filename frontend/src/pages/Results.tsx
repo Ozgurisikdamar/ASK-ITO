@@ -85,7 +85,7 @@ export function Results() {
           <Link to="/" aria-label="Ask ITO home" className="shrink-0">
             <Logo variant="small" />
           </Link>
-          <div className="order-last w-full min-w-0 sm:order-none sm:max-w-xl sm:flex-1">
+          <div className="order-last w-full min-w-0 sm:order-none sm:max-w-xl sm:flex-1 lg:max-w-2xl 2xl:max-w-3xl">
             <SearchBar
               value={query}
               onChange={setQuery}
@@ -121,7 +121,7 @@ export function Results() {
         </nav>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-6 px-4 py-6">
+      <main className="mx-auto max-w-3xl space-y-6 px-4 py-6 xl:max-w-4xl 2xl:max-w-5xl">
         {state.phase === "error" && mode === "search" && (
           <div className="rounded-2xl border border-lilac-300 bg-mauve-200 p-5">
             <h2 className="font-semibold text-content">{strings.results.errorTitle}</h2>
@@ -157,6 +157,7 @@ export function Results() {
             lastStep={state.steps.length ? state.steps[state.steps.length - 1] : null}
             error={state.phase === "error" ? state.error : null}
             errorCode={state.errorCode}
+            errorReason={state.errorReason}
             onRetry={() => setAttempt((n) => n + 1)}
           />
         ) : null}
