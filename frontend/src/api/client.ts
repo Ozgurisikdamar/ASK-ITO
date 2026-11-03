@@ -248,9 +248,12 @@ export interface EvalRun {
   ragas: Record<string, number | string | null>;
   operational: { latency_ms?: { p50: number | null; p95: number | null }; avg_llm_calls?: number };
   behaviour: Record<string, number | null>;
+  progress?: { done: number; total: number } | null;
+  error?: string | null;
+  options?: { answers: boolean; ragas: boolean };
 }
 
-export async function getRuns(): Promise<{ runs: EvalRun[] }> {
+export async function getRuns(): Promise<{ runs: EvalRun[]; active?: boolean }> {
   const r = await fetch(apiUrl("/api/eval/runs"));
   if (!r.ok) throw new Error(`runs failed: ${r.status}`);
   return r.json();
@@ -305,14 +308,25 @@ export async function getCompare(a: number, b: number): Promise<{
   return r.json();
 }
 
-export async function startRun(configs: string[]): Promise<{ status: string; configs: string[] }> {
+export interface StartedRun {
+  status: string;
+  configs: string[];
+  run_ids: number[];
+  questions: number;
+  skipped: { id: string; reason: string }[];
+}
+
+export async function startRun(
+  configs: string[],
+  opts: { answers: boolean; ragas: boolean },
+): Promise<StartedRun> {
   const r = await fetch(apiUrl("/api/eval/runs"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ configs }),
+    body: JSON.stringify({ configs, ...opts }),
   });
-  const data = await r.json();
-  if (!r.ok) throw new Error(data?.detail || data?.error || "start run failed");
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data?.message || data?.detail || data?.error || `start failed: ${r.status}`);
   return data;
 }
 

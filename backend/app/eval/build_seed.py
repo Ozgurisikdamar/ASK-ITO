@@ -11,23 +11,18 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 from app.eval import testset
 from app.eval.gold import best_chunks, resolve_doc_ids
-
-SEED_FILE = Path(__file__).resolve().parents[2] / "eval" / "seed_questions.json"
+from app.eval.prepare import SEED_FILE, seed_ids
 
 
 def run() -> dict:
     seeds = json.loads(SEED_FILE.read_text(encoding="utf-8"))
     rows: list[dict] = []
-    counts: dict[str, int] = {}
     warnings: list[str] = []
-    for s in seeds:
+    for qid, s in seed_ids(seeds).items():
         qt = s["qtype"]
-        counts[qt] = counts.get(qt, 0) + 1
-        qid = f"seed-{qt}-{counts[qt]:03d}"
         doc_ids = resolve_doc_ids(s.get("gold_titles", []))
         chunk_ids = best_chunks(doc_ids, s.get("keywords", ""), k=2) if doc_ids else []
         if qt != "unanswerable" and not doc_ids:

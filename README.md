@@ -249,15 +249,33 @@ retrieval metrics work fully without an LLM; answers and RAGAS need a real one.
 
 ### Evaluation
 
+The panel at http://localhost:5173/eval works on a fresh setup: the committed
+test set (`backend/eval/testset.jsonl`, 46 hand-authored questions) is loaded
+when a run starts. Gold ids depend on ingestion order, so every run first
+resolves the gold articles by title against the corpus that is loaded (the same
+way `make testset-seed` builds them); a question whose gold article is not in
+the corpus is left out and reported. On the corpus the test set was built from
+this reproduces the committed ids exactly.
+
+"Run selected" queues one run per configuration and the page shows each one as
+queued, running (questions done / total), done, or failed with the reason. By
+default a run scores the ranked passages only (Recall@k, MRR, nDCG; a few
+minutes in total). "Generate answers" also calls the local model for every
+question (needed for `closed_book`, `agentic`, refusal and RAGAS metrics; about
+a minute per question on CPU with Q8_0, and AI Mode waits for the model
+meanwhile); "RAGAS judge" adds many more model calls. One evaluation runs at a
+time; a run cut short by a backend restart is marked as failed.
+
 ```bash
-make testset-seed        # build the hand-authored seed test set
+make testset-seed        # rebuild the seed test set against this corpus
 make testset-draft       # (optional) LLM-generate more drafts to review
 make testset-load        # load reviewed testset.jsonl into eval_questions
-make eval CONFIGS=all     # run all modes, write docs/EVAL_REPORT.md (or ./askito eval)
+make eval CONFIGS=all     # all modes with answers + RAGAS, write docs/EVAL_REPORT.md
+./askito eval bm25,hybrid,hybrid_rerank --retrieval-only   # passages only, no LLM
 ```
 
-Then open the panel at http://localhost:5173/eval (ablation table, charts, run
-detail, compare) and the test-set review at `/eval/review`.
+Run detail, compare and the test-set review (`/eval/review`) are linked from
+the panel.
 
 ## Running without Docker (dev)
 
@@ -303,7 +321,7 @@ npm run dev
 | `GET` | `/api/suggest/featured` | Featured queries (pre-computed in the background at startup) |
 | `GET/POST` | `/api/eval/review` | Test-set review (list / accept / reject) |
 | `GET` | `/api/eval/runs`, `/api/eval/runs/{id}` | Eval runs and per-question results |
-| `POST` | `/api/eval/runs` | Start an eval run in the background |
+| `POST` | `/api/eval/runs` | `{configs, answers?, ragas?}`: queue eval runs (409 if one is running or no question fits the corpus) |
 | `GET` | `/api/eval/compare?a=&b=` | Compare two runs per question |
 
 Modes: `overview` (default, Answer: hybrid + rerank + one LLM call), `search`

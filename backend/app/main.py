@@ -14,9 +14,14 @@ from app.db.connection import close_pool
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    import threading
+
+    from app.eval.jobs import mark_interrupted
     from app.warmup import start_background
 
     start_background()  # load models/indexes + pre-warm featured answers, off the request path
+    # evaluation runs cut short by a restart are marked as such (not "running" forever)
+    threading.Thread(target=mark_interrupted, name="eval-cleanup", daemon=True).start()
     yield
     close_pool()
 

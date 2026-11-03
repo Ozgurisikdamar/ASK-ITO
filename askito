@@ -94,7 +94,7 @@ case "$cmd" in
     exec_backend python -m app.ingest.run
     exec_backend python -m app.index.run
     ;;
-  eval)     exec_backend python -m app.eval.run --configs "${1:-all}" ;;
+  eval)     exec_backend python -m app.eval.run --configs "${1:-all}" "${@:2}" ;;
   bench)    exec_backend python scripts/bench.py "$@" ;;
   test)
     exec_backend pytest -q
@@ -115,7 +115,8 @@ Ask ITO commands
   migrate        apply database migrations
   ingest [--force] fetch the Wikipedia snapshot
   index          chunk, embed, build BM25 + pgvector
-  eval [cfgs]    run the evaluation (default: all)
+  eval [cfgs] [--retrieval-only] [--no-ragas]
+                 run the evaluation (default: all, with answers and RAGAS)
   bench [args]   latency benchmark (e.g. ./askito bench --llm)
   test           backend tests + frontend typecheck
   health         print /api/health

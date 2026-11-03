@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import psycopg
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from app.api.errors import safe_error
 from app.config import settings
 from app.eval import testset
 from app.retrieval.hydrate import body_without_prefix
@@ -21,7 +22,7 @@ def _conn():
 def list_runs():
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT id, config_name, status, started_at, finished_at, summary "
+            "SELECT id, config_name, status, started_at, finished_at, summary, config_json "
             "FROM eval_runs ORDER BY id DESC"
         ).fetchall()
     out = []
@@ -36,8 +37,14 @@ def list_runs():
             "operational": summary.get("operational", {}),
             "behaviour": summary.get("behaviour", {}),
             "n_questions": summary.get("n_questions"),
+            "progress": summary.get("progress"),
+            "error": summary.get("error"),
+            "options": {"answers": (r[6] or {}).get("answers", True),
+                        "ragas": (r[6] or {}).get("ragas", True)},
         })
-    return {"runs": out}
+    from app.eval import jobs
+
+    return {"runs": out, "active": jobs.active()}
 
 
 @router.get("/eval/runs/{run_id}")
@@ -92,18 +99,29 @@ def compare(a: int, b: int):
 
 class RunRequest(BaseModel):
     configs: list[str]
+    answers: bool = True  # False: score the ranked passages only (no LLM answers)
+    ragas: bool = True  # RAGAS judge over the answers (needs answers)
 
 
 @router.post("/eval/runs")
-def start_run(req: RunRequest, background: BackgroundTasks):
-    from app.eval import run as eval_run
+def start_run(req: RunRequest):
+    from app.eval import jobs, run as eval_run
 
-    modes = eval_run.ALL_MODES if req.configs == ["all"] else req.configs
-    bad = [m for m in modes if m not in eval_run.ALL_MODES]
-    if bad:
-        return JSONResponse(status_code=400, content={"error": "bad_configs", "detail": bad})
-    background.add_task(eval_run.run, modes)
-    return {"status": "started", "configs": modes}
+    try:
+        job = jobs.start(req.configs, answers=req.answers, ragas=req.ragas)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"error": "bad_configs",
+                                                      "message": str(exc)})
+    except jobs.EvalBusy:
+        return JSONResponse(status_code=409, content={
+            "error": "busy", "message": "An evaluation is already running. Wait for it to "
+                                        "finish."})
+    except eval_run.NoQuestions as exc:  # no usable questions for this corpus
+        return JSONResponse(status_code=409, content={"error": "no_questions",
+                                                      "message": str(exc)})
+    except psycopg.Error as exc:
+        return JSONResponse(status_code=503, content=safe_error("internal_error", exc))
+    return {"status": "queued", **job}
 
 
 def _gold_previews(chunk_ids: list[int]) -> list[dict]:
