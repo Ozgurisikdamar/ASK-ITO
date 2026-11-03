@@ -9,7 +9,11 @@ Rules:
 - Always write the answer in English.
 - Use only information in the context. Do not use outside knowledge.
 - After each claim, cite the passage number(s) it comes from, like [1] or [2][3].
-- If the context does not contain the answer, say exactly: "I could not find this in the sources." Do not guess or invent facts.
+- If the context answers only part of the question (for example one side of a
+  comparison), answer that part with citations and say in one short sentence
+  which part the context does not cover.
+- Only if no passage is relevant to the question, say exactly: "I could not find
+  this in the sources." and nothing else. Do not guess or invent facts.
 - If the question asks for a list or ranking, give only what the passages contain and do not present it as complete.
 - Be concise and direct. Do not repeat the question.
 
