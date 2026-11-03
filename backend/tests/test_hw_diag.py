@@ -22,6 +22,32 @@ def test_nvidia_smi_output_is_parsed():
                   "vram_total_mb": 12282, "vram_used_mb": 812, "driver": "560.94"}]
 
 
+def test_size_vram_without_a_gpu_is_not_offload():
+    # Measured on this sandbox: no GPU, Ollama 0.40.12 reports size_vram 5.1 GB of
+    # 6.3 GB ("18%/82% CPU/GPU") because the AMX weight buffer is counted as VRAM.
+    ps = [{"name": "qwen3.5:9b", "size": 6276817876, "size_vram": 5130734796}]
+    r = hw.diagnose(ps, run=_no_tools,
+                    log_text='msg="server config" x\nmsg="inference compute" id=cpu library=cpu')
+    if r["gpus"]:
+        return  # a real GPU is attached to this machine
+    assert r["verdict"] == "cpu_only" and r["compute_libraries"] == ["cpu"]
+    assert any("not GPU offload" in n for n in r["notes"])
+
+
+def test_gpu_device_but_cpu_runner_library_is_unused():
+    gpu = [{"vendor": "nvidia"}]
+    part = hw.ollama_offload([{"name": "m", "size": 100, "size_vram": 80}])
+    assert hw.verdict(gpu, part, {"cpu"}) == "gpu_present_unused"
+    assert hw.verdict(gpu, part, {"cuda", "cpu"}) == "gpu_partial"
+
+
+def test_log_compute_libraries_uses_last_server_start():
+    log = ('msg="server config"\nmsg="inference compute" id=0 library=cuda\n'
+           'msg="server config"\nmsg="inference compute" id=cpu library=cpu\n')
+    assert hw.log_compute_libraries(log) == {"cpu"}
+    assert hw.log_compute_libraries("nothing here") is None
+
+
 def test_offload_verdicts_from_ollama_ps():
     gpu = [{"vendor": "nvidia"}]
     full = hw.ollama_offload([{"name": "m", "size": 100, "size_vram": 100}])

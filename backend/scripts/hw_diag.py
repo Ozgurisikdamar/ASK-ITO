@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 LOG_PATTERNS = re.compile(
     r"inference compute|offloaded \d+/\d+ layers|llama_kv_cache: size|flash_attn\s*=|"
-    r"KV cache shifting|no compatible GPUs", re.I)
+    r"model buffer size|KV cache shifting|no compatible GPUs", re.I)
 
 
 def main() -> None:
@@ -40,9 +40,11 @@ def main() -> None:
         ps = httpx.get(f"{args.base_url}/api/ps", timeout=5).json().get("models", [])
     except Exception as exc:  # noqa: BLE001
         print(f"ollama unreachable: {exc.__class__.__name__}", file=sys.stderr)
-    report = diagnose(ps)
-    if args.log and Path(args.log).exists():
-        lines = Path(args.log).read_text(errors="replace").splitlines()
+    log_text = Path(args.log).read_text(errors="replace") \
+        if args.log and Path(args.log).exists() else None
+    report = diagnose(ps, log_text=log_text)
+    if log_text:
+        lines = log_text.splitlines()
         report["ollama_log"] = [ln[-220:] for ln in lines if LOG_PATTERNS.search(ln)][-25:]
     print(json.dumps(report, indent=1))
 

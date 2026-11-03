@@ -327,17 +327,30 @@ def run(args) -> None:
 
 def prefix(args) -> None:
     """Send the same long prompt twice, then the same passages with another
-    question. If the runtime reuses the cached prefix, the repeated request
-    evaluates far fewer prompt tokens (prompt_eval_count) and its prefill is
-    shorter. Reports what was observed; it does not assume reuse."""
+    question. If the runtime reuses the cached prefix, the repeated request's
+    prefill (prompt_eval_duration) is far shorter. Reports what was observed;
+    it does not assume reuse."""
     _env()
     from app.config import settings
     from app.llm.client import OllamaClient
 
+    from app.agent.answer import Source, build_context
+    from app.agent.prompts import load
+    from app.retrieval.hydrate import ChunkInfo
+
     frozen = json.loads((OUT / "frozen.json").read_text())
-    item = next(i for i in frozen["questions"] if i["messages"])
-    msg = item["messages"][0]["content"]
-    other = msg.rsplit("Question:", 1)[0] + "Question: Who built it?\n\nAnswer:"
+    item = max((i for i in frozen["questions"] if i["messages"]),
+               key=lambda i: len(i["sources"]))
+    # Passages in reverse order: the smoke run just cached the original prompts,
+    # so only the fixed instruction header is shared with anything seen before.
+    srcs = [Source(n=k, chunk_id=s["chunk_id"],
+                   info=ChunkInfo(s["chunk_id"], 0, s["doc_title"], s["section"], "", "",
+                                  f"{s['doc_title']}\n\n{s['text']}"))
+            for k, s in enumerate(reversed(item["sources"]), start=1)]
+    context = build_context(srcs, settings.overview_context_chars)
+    template = load("overview").replace("{context}", context)
+    msg = template.replace("{question}", item["question"])
+    other = template.replace("{question}", "Who built it and when?")
     from benchkit import ollama_info
 
     if not ollama_info(settings.llm_base_url, args.model).get("quantization"):
@@ -354,9 +367,15 @@ def prefix(args) -> None:
                     "prompt_eval_ms": u.get("prompt_eval_ms"),
                     "wall_s": round(time.perf_counter() - t0, 2)})
         print(obs[-1], flush=True)
-    first, rep = obs[0]["prompt_eval_count"] or 0, obs[1]["prompt_eval_count"] or 0
-    verdict = ("reuse observed" if first and rep < first * 0.5 else
-               "no reuse observed (prompt fully re-evaluated)")
+    # Ollama 0.40 reports the full prompt length in prompt_eval_count even when the
+    # runner reuses a cached prefix, so reuse is judged from the prefill time.
+    first, rep = obs[0]["prompt_eval_ms"] or 0, obs[1]["prompt_eval_ms"] or 0
+    partial = obs[2]["prompt_eval_ms"] or 0
+    verdict = ("identical prompt: reuse observed" if first and rep < first * 0.25 else
+               "identical prompt: no reuse observed")
+    verdict += ("; same passages + new question: prefix reuse observed"
+                if first and partial < first * 0.6 else
+                "; same passages + new question: no prefix reuse observed")
     out = {"model": args.model, "runtime_env": runtime_env(), "observations": obs,
            "verdict": verdict}
     safe = args.model.replace(":", "_")
