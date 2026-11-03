@@ -121,6 +121,22 @@ def _search(query_text: str, domain: str | None, trace: list[dict],
     return res.final
 
 
+def _norm(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _dedupe(subquestions: list[str], trace: list[dict]) -> list[str]:
+    out, seen = [], set()
+    for q in subquestions:
+        if _norm(q) in seen:
+            trace.append({"step": "subquestion_skipped", "input": q,
+                          "output": "duplicate sub-question", "duration_ms": 0})
+            continue
+        seen.add(_norm(q))
+        out.append(q)
+    return out
+
+
 def _context_for_sufficiency(cand: dict[int, float], max_chunks: int = 8) -> str:
     top = sorted(cand.items(), key=lambda x: x[1], reverse=True)[:max_chunks]
     infos = hydrate.fetch_chunks([c for c, _ in top])
@@ -191,13 +207,26 @@ def _run_agent(
     scored: dict[tuple[str, int], float] = {}  # (query text, chunk) -> CE score
     best_by_sub: list[float] = []
 
+    # Deterministic guards (no LLM involved, every skip is traced): a sub-question
+    # or search query that was already handled is not rewritten / searched again,
+    # and the sufficiency check is not repeated when the last search added no new
+    # passage (same context -> same verdict at temperature 0).
+    searched: dict[str, list[tuple[int, float]]] = {}
+    subquestions = _dedupe(subquestions, trace)
+
     # 2 + 3. write query + search for each sub-question
     for subq in subquestions:
         if _now() > deadline:
             break
         is_sub = bool(analysis.subquestions)
         search_q = _write_query(counter, subq, trace, _skip_rewrite(analysis, is_sub))
-        found = _search(search_q, domain, trace, scored)
+        key = _norm(search_q)
+        if key in searched:
+            trace.append({"step": "search_skipped", "input": search_q,
+                          "output": "query already searched", "duration_ms": 0})
+            found = searched[key]
+        else:
+            found = searched[key] = _search(search_q, domain, trace, scored)
         best_by_sub.append(max((s for _, s in found), default=float("-inf")))
         merge(found)
 
@@ -234,10 +263,22 @@ def _run_agent(
         })
         if suff.sufficient or not suff.next_query:
             break
-        found = _search(suff.next_query, domain, trace, scored)
+        if _norm(suff.next_query) in searched:
+            trace.append({"step": "sufficiency_stopped", "input": suff.next_query,
+                          "output": {"reason": "next query already searched"},
+                          "duration_ms": 0})
+            break
+        before = len(candidates)
+        found = searched[_norm(suff.next_query)] = _search(suff.next_query, domain, trace,
+                                                           scored)
         best_by_sub = [max((s for _, s in found), default=float("-inf"))]
         merge(found)
         rounds += 1
+        if len(candidates) == before:
+            trace.append({"step": "sufficiency_stopped", "input": suff.next_query,
+                          "output": {"reason": "no new passages from the follow-up search"},
+                          "duration_ms": 0})
+            break
 
     # final rerank of the union against the original query -> diversity -> final_k
     t0 = _now()

@@ -20,6 +20,22 @@ class SimpleLLM(ScriptedLLM):
 
 
 class InsufficientLLM(ScriptedLLM):
+    """Never satisfied; asks for a different follow-up search each round."""
+    FOLLOW_UPS = ["Hinton backpropagation", "Boltzmann machine", "Hopfield network memory",
+                  "restricted Boltzmann machine training"]
+
+    def chat(self, messages, temperature=0.0, model=None, **kwargs):
+        if "Decide whether the collected context" in messages[-1]["content"]:
+            self.calls += 1
+            self.n_suff = getattr(self, "n_suff", 0) + 1
+            nxt = self.FOLLOW_UPS[(self.n_suff - 1) % len(self.FOLLOW_UPS)]
+            return '{"sufficient": false, "missing": "x", "next_query": "%s"}' % nxt
+        return super().chat(messages, temperature, model, **kwargs)
+
+
+class RepeatingLLM(ScriptedLLM):
+    """Never satisfied and keeps asking for the same follow-up query."""
+
     def chat(self, messages, temperature=0.0, model=None, **kwargs):
         if "Decide whether the collected context" in messages[-1]["content"]:
             self.calls += 1
@@ -121,3 +137,43 @@ def test_deadline_still_answers(monkeypatch):
     monkeypatch.setattr(settings, "agent_timeout_s", 0)
     res = _run()
     assert "answer" in _steps(res) and res["answer"]
+
+
+# -- deterministic guards ---------------------------------------------------------
+
+def test_identical_search_queries_are_searched_once():
+    class SameRewriteLLM(ScriptedLLM):
+        def chat(self, messages, temperature=0.0, model=None, **kwargs):
+            if "Rewrite the user's question" in messages[-1]["content"]:
+                self.calls += 1
+                return '{"query": "Hopfield Hinton neural networks Nobel 2024"}'
+            return super().chat(messages, temperature, model, **kwargs)
+
+    res = _run(llm=SameRewriteLLM("A [1]."))  # both sub-questions -> one query
+    assert _steps(res).count("search") == 1 and "search_skipped" in _steps(res)
+    assert _roles(res)["rewrite"]["calls"] == 2  # rewriting itself is unchanged
+
+
+def test_repeated_follow_up_query_stops_the_sufficiency_loop(monkeypatch):
+    monkeypatch.setattr(settings, "agent_max_rounds", 5)
+    monkeypatch.setattr(settings, "agent_max_llm_calls", 20)
+    res = _run(llm=RepeatingLLM("A [1]."))
+    stops = [s for s in res["trace"] if s["step"] == "sufficiency_stopped"]
+    assert stops and "already searched" in stops[0]["output"]["reason"]
+    # one follow-up search, then the repeat is detected: 2 sufficiency calls, not 4
+    assert _roles(res)["sufficiency"]["calls"] == 2 and res["rounds"] == 2
+    assert "answer" in _roles(res) and res["answer"]
+
+
+def test_duplicate_subquestions_are_dropped():
+    class DupLLM(ScriptedLLM):
+        def chat(self, messages, temperature=0.0, model=None, **kwargs):
+            if "Analyse the user's question" in messages[-1]["content"]:
+                self.calls += 1
+                return ('{"qtype": "multi_hop", "subquestions": ["What did Hopfield do?", '
+                        '"what did  hopfield do?"]}')
+            return super().chat(messages, temperature, model, **kwargs)
+
+    res = _run(llm=DupLLM("A [1]."))
+    assert "subquestion_skipped" in _steps(res)
+    assert _roles(res)["rewrite"]["calls"] == 1

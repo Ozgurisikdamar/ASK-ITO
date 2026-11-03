@@ -8,3 +8,7 @@ import os
 os.environ.setdefault("LLM_MODE", "mock")
 os.environ.setdefault("WARMUP_ON_START", "false")
 os.environ.setdefault("PREWARM_FEATURED", "false")
+# Call-count assertions need every agent run to reach the (scripted) LLM; the
+# tool cache has its own tests that switch it on.
+os.environ.setdefault("AGENT_TOOL_CACHE", "false")
+os.environ.setdefault("REDIS_ENABLED", "false")

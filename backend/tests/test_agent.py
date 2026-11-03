@@ -39,6 +39,11 @@ class ScriptedLLM:
             return ('{"qtype": "multi_hop", "subquestions": '
                     '["What did John Hopfield contribute?", "What did Geoffrey Hinton contribute?"]}')
         if "Rewrite the user's question" in p:
+            question = p.rsplit("Question:", 1)[-1]
+            if "Hinton" in question and "Hopfield" not in question:
+                return '{"query": "Geoffrey Hinton Boltzmann machine Nobel 2024"}'
+            if "Hopfield" in question and "Hinton" not in question:
+                return '{"query": "John Hopfield network associative memory Nobel 2024"}'
             return '{"query": "Hopfield Hinton neural networks Nobel 2024"}'
         if "Decide whether the collected context" in p:
             return '{"sufficient": true, "missing": "", "next_query": null}'
