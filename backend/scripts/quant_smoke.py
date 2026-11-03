@@ -1,8 +1,8 @@
 """Q4_K_M vs Q8_0 smoke comparison on exactly five questions (no benchmark matrix).
 
   python scripts/quant_smoke.py freeze                       # retrieval once -> frozen prompts
-  python scripts/quant_smoke.py run --model qwen3.5:9b       # Q4_K_M baseline
-  python scripts/quant_smoke.py run --model qwen3.5:9b-q8_0  # Q8_0
+  python scripts/quant_smoke.py run --model qwen3.5:9b --expect-quant Q4_K_M
+  python scripts/quant_smoke.py run --model qwen3.5:9b-q8_0 --expect-quant Q8_0
   python scripts/quant_smoke.py prefix --model qwen3.5:9b-q8_0  # prefix-cache probe
 
 `freeze` runs the Answer (overview) retrieval path once per question (hybrid +
@@ -166,22 +166,73 @@ def _citation_check(raw: str, n_sources: int) -> dict:
             "citation_id_validity": round(len(valid) / len(cited), 3) if cited else None}
 
 
+class SmokeError(RuntimeError):
+    """A condition that stops the comparison (reported, never worked around)."""
+
+
+def check_identity(info: dict, model: str, expect_quant: str) -> None:
+    """The tag must be present locally and serve exactly the expected weight
+    quantization; anything else stops the run (no substitution)."""
+    if not info.get("ollama_version"):
+        raise SmokeError("Ollama is not reachable at LLM_BASE_URL")
+    if not info.get("quantization"):
+        raise SmokeError(f"model {model!r} is not available locally "
+                         f"({info.get('model_error', 'not pulled')}); pull it first")
+    if info["quantization"].upper() != expect_quant.upper():
+        raise SmokeError(f"model {model!r} serves {info['quantization']}, expected "
+                         f"{expect_quant}; refusing to compare a different quantization")
+
+
+def _show_parameters(base: str, model: str) -> str | None:
+    import httpx
+
+    try:
+        return httpx.post(f"{base}/api/show", json={"model": model}, timeout=10) \
+            .json().get("parameters")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _write(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=1))
+    print(f"wrote {path}", flush=True)
+
+
 def run(args) -> None:
     _env()
     import httpx
 
     from app.agent.answer import NOT_FOUND, validate_citations
     from app.config import settings
-    from app.llm.client import OllamaClient
+    from app.llm.client import LLMError, OllamaClient
     from benchkit import hardware, ollama_info
 
-    frozen = json.loads((OUT / "frozen.json").read_text())
+    safe = args.model.replace(":", "_").replace("/", "_")
+    path = OUT / f"run_{safe}_{args.tag}.json"
+    frozen_path = OUT / "frozen.json"
+    if not frozen_path.exists():
+        sys.exit(f"{frozen_path} missing: run `quant_smoke.py freeze` first")
+    frozen = json.loads(frozen_path.read_text())
     base = settings.llm_base_url
-    client = OllamaClient(base)
     info = ollama_info(base, args.model)
-    if not info.get("quantization"):
-        sys.exit(f"model {args.model} not available locally: {info}")
+    out = {"model": args.model, "expected_quantization": args.expect_quant, "ollama": info,
+           "runtime_env": runtime_env(), "hardware": hardware(),
+           "settings": frozen["settings"],
+           # identical for both models: only the weights differ
+           "generation": {"temperature": 0.0, "num_ctx": settings.llm_num_ctx,
+                          "think": settings.llm_think, "keep_alive": settings.llm_keep_alive,
+                          "num_predict": sorted({q["max_tokens"] for q in frozen["questions"]
+                                                 if q["messages"]}),
+                          "model_parameters": _show_parameters(base, args.model)},
+           "rows": [], "status": "running"}
+    try:
+        check_identity(info, args.model, args.expect_quant)
+    except SmokeError as exc:
+        _write(path, {**out, "status": "stopped", "error": str(exc)})
+        sys.exit(f"STOPPED: {exc}")
 
+    client = OllamaClient(base)
     ps = httpx.get(f"{base}/api/ps", timeout=10).json().get("models", [])
     was_loaded = any(m.get("name") == args.model for m in ps)
     rss_before = _rss_mb()
@@ -190,7 +241,12 @@ def run(args) -> None:
         r = httpx.post(f"{base}/api/generate", json={"model": args.model, "prompt": "",
                                                        "keep_alive": settings.llm_keep_alive},
                        timeout=3600)
-    r.raise_for_status()
+    if r.status_code != 200:  # e.g. "model requires more system memory ..."
+        err = (r.json().get("error") if "json" in r.headers.get("content-type", "")
+               else r.text)[:300]
+        _write(path, {**out, "status": "stopped", "error": f"load failed: {err}",
+                      "load": {"rss_peak_mb": load_peak.peak}})
+        sys.exit(f"STOPPED: load failed: {err}")
     load = {"already_loaded": was_loaded, "wall_s": round(time.perf_counter() - t, 2),
             "load_duration_s": round(r.json().get("load_duration", 0) / 1e9, 2),
             "rss_before_mb": rss_before, "rss_peak_mb": load_peak.peak,
@@ -199,59 +255,72 @@ def run(args) -> None:
     loaded = next((m for m in ps if m.get("name") == args.model), {})
     load["size_bytes"] = loaded.get("size")
     load["size_vram_bytes"] = loaded.get("size_vram")
+    out["load"] = load
     print("loaded", load, flush=True)
 
-    rows = []
-    for item in frozen["questions"]:
-        q = item["question"]
-        if not item["messages"]:  # evidence cut-off: no LLM call for either model
-            rows.append({"question": q, "abstained_before_llm": True, "answer": NOT_FOUND})
-            continue
-        pieces, first = [], None
-        t0 = time.perf_counter()
-        with PeakRSS() as peak:
-            for piece in client.stream_chat(item["messages"], temperature=0.0,
-                                            model=args.model,
-                                            max_tokens=item["max_tokens"]):
-                if first is None:
-                    first = time.perf_counter() - t0
-                pieces.append(piece)
-        wall = time.perf_counter() - t0
-        u = dict(client.last_usage)
-        raw = "".join(pieces)
-        cleaned, used = validate_citations(raw, len(item["sources"]))
-        decode_s = (u.get("eval_ms") or 0) / 1000
-        prefill_s = (u.get("prompt_eval_ms") or 0) / 1000
-        row = {
-            "question": q, "ttft_s": round(first or wall, 2), "total_s": round(wall, 2),
-            "prompt_tokens": u.get("prompt_tokens"), "prefill_s": round(prefill_s, 2),
-            "prefill_tok_s": round(u["prompt_tokens"] / prefill_s, 2)
-            if prefill_s and u.get("prompt_tokens") else None,
-            "output_tokens": u.get("completion_tokens"), "decode_s": round(decode_s, 2),
-            "decode_tok_s": round(u["completion_tokens"] / decode_s, 2)
-            if decode_s and u.get("completion_tokens") else None,
-            "load_ms": u.get("load_ms"), "done_reason": u.get("done_reason"),
-            "peak_rss_mb": peak.peak,
-            "answer_raw": raw, "answer": cleaned or NOT_FOUND,
-            "citations_used": sorted(used),
-            **_citation_check(raw, len(item["sources"])),
-        }
-        rows.append(row)
-        print(f"[{args.model}] {q!r}: ttft {row['ttft_s']}s total {row['total_s']}s "
-              f"prefill {row['prompt_tokens']} tok/{row['prefill_s']}s "
-              f"decode {row['output_tokens']} tok @ {row['decode_tok_s']} tok/s "
-              f"rss {row['peak_rss_mb']} MB", flush=True)
-
+    rows = out["rows"]
+    try:
+        for item in frozen["questions"]:
+            q = item["question"]
+            if not item["messages"]:  # evidence cut-off: no LLM call for either model
+                rows.append({"question": q, "abstained_before_llm": True,
+                             "answer": NOT_FOUND})
+                continue
+            pieces, first = [], None
+            t0 = time.perf_counter()
+            try:
+                with PeakRSS() as peak:
+                    for piece in client.stream_chat(item["messages"], temperature=0.0,
+                                                    model=args.model,
+                                                    max_tokens=item["max_tokens"]):
+                        if first is None:
+                            first = time.perf_counter() - t0
+                        pieces.append(piece)
+            except (LLMError, httpx.HTTPError) as exc:  # timeout, server error, OOM
+                rows.append({"question": q, "error": f"{exc.__class__.__name__}: "
+                             f"{str(exc)[:200]}", "total_s": round(time.perf_counter() - t0, 2)})
+                print(f"[{args.model}] {q!r}: ERROR {rows[-1]['error']}", flush=True)
+                continue
+            wall = time.perf_counter() - t0
+            u = dict(client.last_usage)
+            if u.get("model") and u["model"] != args.model:
+                raise SmokeError(f"runtime answered with {u['model']}, not {args.model}")
+            raw = "".join(pieces)
+            cleaned, used = validate_citations(raw, len(item["sources"]))
+            decode_s = (u.get("eval_ms") or 0) / 1000
+            prefill_s = (u.get("prompt_eval_ms") or 0) / 1000
+            row = {
+                "question": q, "ttft_s": round(first or wall, 2), "total_s": round(wall, 2),
+                "prompt_tokens": u.get("prompt_tokens"), "prefill_s": round(prefill_s, 2),
+                "prefill_tok_s": round(u["prompt_tokens"] / prefill_s, 2)
+                if prefill_s and u.get("prompt_tokens") else None,
+                "output_tokens": u.get("completion_tokens"), "decode_s": round(decode_s, 2),
+                "decode_tok_s": round(u["completion_tokens"] / decode_s, 2)
+                if decode_s and u.get("completion_tokens") else None,
+                "load_ms": u.get("load_ms"), "done_reason": u.get("done_reason"),
+                "peak_rss_mb": peak.peak, "source_chunk_ids": [s["chunk_id"]
+                                                               for s in item["sources"]],
+                "answer_raw": raw, "answer": cleaned or NOT_FOUND,
+                "citations_used": sorted(used),
+                **_citation_check(raw, len(item["sources"])),
+            }
+            rows.append(row)
+            print(f"[{args.model}] {q!r}: ttft {row['ttft_s']}s total {row['total_s']}s "
+                  f"prefill {row['prompt_tokens']} tok/{row['prefill_s']}s "
+                  f"decode {row['output_tokens']} tok @ {row['decode_tok_s']} tok/s "
+                  f"rss {row['peak_rss_mb']} MB", flush=True)
+        out["status"] = "ok" if not any("error" in r for r in rows) else "errors"
+    except KeyboardInterrupt:
+        out["status"] = "cancelled"
+    except SmokeError as exc:
+        out.update(status="stopped", error=str(exc))
     ps = httpx.get(f"{base}/api/ps", timeout=10).json().get("models", [])
     loaded = next((m for m in ps if m.get("name") == args.model), {})
-    out = {"model": args.model, "ollama": info, "runtime_env": runtime_env(),
-           "hardware": hardware(), "load": load, "size_vram_bytes": loaded.get("size_vram"),
-           "settings": frozen["settings"], "rows": rows,
-           "measured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-    safe = args.model.replace(":", "_").replace("/", "_")
-    path = OUT / f"run_{safe}_{args.tag}.json"
-    path.write_text(json.dumps(out, indent=1))
-    print(f"wrote {path}")
+    out["size_vram_bytes"] = loaded.get("size_vram")
+    out["measured_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    _write(path, out)
+    if out["status"] in ("stopped", "cancelled"):
+        sys.exit(f"{out['status'].upper()}: {out.get('error', '')}")
 
 
 # -- prefix cache probe ---------------------------------------------------------------
@@ -269,6 +338,10 @@ def prefix(args) -> None:
     item = next(i for i in frozen["questions"] if i["messages"])
     msg = item["messages"][0]["content"]
     other = msg.rsplit("Question:", 1)[0] + "Question: Who built it?\n\nAnswer:"
+    from benchkit import ollama_info
+
+    if not ollama_info(settings.llm_base_url, args.model).get("quantization"):
+        sys.exit(f"STOPPED: Ollama unreachable or {args.model!r} not pulled")
     client = OllamaClient(settings.llm_base_url)
     obs = []
     for label, content in (("first", msg), ("identical_repeat", msg),
@@ -299,6 +372,9 @@ def main() -> None:
         p = sub.add_parser(name)
         p.add_argument("--model", required=True)
         p.add_argument("--tag", default="kv", help="label for the runtime config (e.g. kv-f16)")
+        if name == "run":
+            p.add_argument("--expect-quant", required=True,
+                           help="weight quantization the tag must serve (Q4_K_M, Q8_0)")
     args = ap.parse_args()
     {"freeze": freeze, "run": run, "prefix": prefix}[args.cmd](args)
 

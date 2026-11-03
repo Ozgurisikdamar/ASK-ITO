@@ -261,3 +261,100 @@ def _no_db():
 
 def test_hash_key_is_stable():
     assert hash_key(("a", 1)) == hash_key(("a", 1)) != hash_key(("a", 2))
+
+
+# -- evidence against a real redis-server (not mocks) -------------------------------
+
+def test_ttl_expiry_on_real_redis(live, monkeypatch):
+    monkeypatch.setattr(settings, "redis_ttl_tool_s", 1)
+    assert cache.set_json("tool", "short", {"v": 1})
+    assert cache.get_json("tool", "short") == {"v": 1}
+    time.sleep(2.2)
+    assert cache.get_json("tool", "short") is None  # expired by Redis itself
+
+
+def test_redis_unavailable_at_startup_falls_back(monkeypatch, caplog):
+    """A real redis-py client against a closed port (connection refused)."""
+    pytest.importorskip("redis")
+    from app.retrieval import pipeline
+
+    monkeypatch.setattr(settings, "redis_enabled", True)
+    monkeypatch.setattr(settings, "redis_strict", False)
+    monkeypatch.setattr(settings, "redis_url", f"redis://127.0.0.1:{_free_port()}/0")
+    cache.reset()
+    monkeypatch.setattr(pipeline, "_cache", pipeline.OrderedDict())
+    res = pipeline.PipelineResult("search", [(1, 0.5)], [], None, {}, ranked=[(1, 0.5)])
+    with caplog.at_level(logging.WARNING, logger="askito.redis"):
+        pipeline.cache_put("q", "search", None, 5, res)  # Redis write fails -> warning
+        assert pipeline.cache_get("q", "search", None, 5).cache_tier == "l1"
+    assert "redis cache unavailable" in caplog.text
+    assert cache.status()["available"] is False
+    cache.reset()
+
+
+needs_index = pytest.mark.skipif(
+    not __import__("tests.test_agent", fromlist=["_index_ready"])._index_ready(),
+    reason="index/DB not built")
+
+
+@needs_index
+def test_search_miss_hit_and_invalidation_end_to_end(live, monkeypatch):
+    """Real retrieval (BM25 + embedding + pgvector) with Redis as L2."""
+    from app.index import embed
+    from app.retrieval import pipeline
+
+    monkeypatch.setattr(settings, "search_rerank", False)
+    q = "superconducting transmon qubit charge noise"
+    pipeline.cache_clear()
+    embed.embedding_cache_clear()
+    first = pipeline.run_retrieval(q, "search", domain="all")
+    assert not first.cached and first.embedding_source == "model"  # miss everywhere
+    pipeline.cache_clear()  # drop L1: a new process would only have Redis
+    embed.embedding_cache_clear()
+    second = pipeline.run_retrieval(q, "search", domain="all")
+    assert second.cached and second.cache_tier == "l2"
+    assert second.final == first.final
+    # a retrieval setting change (RRF k) is part of the key -> recomputed
+    pipeline.cache_clear()
+    monkeypatch.setattr(settings, "rrf_k", settings.rrf_k + 1)
+    third = pipeline.run_retrieval(q, "search", domain="all")
+    assert not third.cached and third.embedding_source == "l2"  # embedding still reused
+    assert live.dbsize() >= 3  # emb + two retrieval keys
+
+
+@needs_index
+def test_search_keeps_working_when_redis_stops(monkeypatch):
+    exe = shutil.which("redis-server")
+    if exe is None:
+        pytest.skip("redis-server not installed")
+    from app.retrieval import pipeline
+
+    port = _free_port()
+    proc = subprocess.Popen([exe, "--port", str(port), "--bind", "127.0.0.1", "--save", ""],
+                            stdout=subprocess.DEVNULL)
+    import redis
+
+    for _ in range(50):
+        try:
+            redis.Redis(port=port).ping()
+            break
+        except redis.ConnectionError:
+            time.sleep(0.1)
+    monkeypatch.setattr(settings, "redis_enabled", True)
+    monkeypatch.setattr(settings, "redis_url", f"redis://127.0.0.1:{port}/0")
+    monkeypatch.setattr(settings, "search_rerank", False)
+    cache.reset()
+    try:
+        q = "Shor's algorithm factoring"
+        pipeline.cache_clear()
+        assert pipeline.run_retrieval(q, "search", domain="all").final
+        proc.terminate()
+        proc.wait(timeout=10)
+        pipeline.cache_clear()
+        res = pipeline.run_retrieval(q, "search", domain="all")  # Redis gone
+        assert res.final and not res.cached
+        assert cache.status()["available"] is False
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+        cache.reset()
