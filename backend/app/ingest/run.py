@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -28,7 +29,8 @@ from app.ingest.clean import char_count, clean_extract
 from app.ingest.seeds import load_seeds
 from app.ingest.wiki import PageResult, WikiClient, WikiError
 
-RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
+RAW_DIR = Path(os.environ.get("ASKITO_RAW_DIR")
+               or Path(__file__).resolve().parents[2] / "data" / "raw")
 SEEDS_DIR = Path(__file__).resolve().parents[2] / "data" / "seeds"
 INDEX_FILE = RAW_DIR / "_index.json"
 UNRESOLVED_LOG = SEEDS_DIR / "unresolved.log"

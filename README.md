@@ -62,6 +62,33 @@ The UI shows the article count and snapshot date. The scope was refined from
 the spec's original target for feasibility; see ADR-0007. Growing it means
 running the ingest pipeline with more seeds (`./askito ingest`, then `index`).
 
+### AI Mode adds Wikipedia articles when the corpus has no good evidence
+
+In AI Mode (all domains), when the best reranker score for a question is below
+`LIVE_INGEST_MIN_SCORE` (0.95), the backend searches English Wikipedia for the
+question, fetches up to `LIVE_INGEST_MAX_ARTICLES` (2) articles, cleans and
+chunks them with the snapshot pipeline (same chunker, same embedding model) and
+stores them in PostgreSQL, one transaction per article, as `origin='dynamic'`
+documents in the `general` domain. The BM25 index is then rebuilt from the
+database, which bumps the index version, so every retrieval and answer cache
+picks up the new chunks; the answer is generated afterwards and can cite them.
+The page shows "Added from Wikipedia" with the article titles, and the corpus
+line counts them separately. Search mode never does this.
+
+- **What leaves the machine:** only the question text, as the Wikipedia search
+  query (plus the article titles fetched). Nothing is sent when the local
+  evidence is good. Set `LIVE_INGEST_ENABLED=false` to never contact Wikipedia
+  at query time.
+- **Bounds:** `LIVE_INGEST_TIMEOUT_S` (30 s) for search + fetch, 10 s per HTTP
+  request, `LIVE_INGEST_MAX_CHARS` (40,000) per article, one ingestion at a time.
+  If Wikipedia is unreachable the answer is generated from the local corpus.
+- **Idempotent:** an article already stored with the same revision is skipped;
+  a newer revision replaces its chunks; snapshot articles are never rewritten.
+  Added articles are also saved under `backend/data/raw/`, so a later full
+  `./askito index` keeps them.
+- Wikipedia text is untrusted evidence: the answer prompt treats every passage
+  as data, never as instructions.
+
 ## Stack
 
 - **DB**: PostgreSQL 16 + pgvector (HNSW, `vector_cosine_ops`)

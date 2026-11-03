@@ -3,9 +3,11 @@ export const strings = {
   appName: "Ask ITO",
   tagline: "Search and ask about Nobel Prizes, quantum computing and AI — every answer cites its sources.",
   backendUnavailable: "backend unavailable",
-  scope: (n: number | null, date: string | null) =>
-    `Searches a fixed snapshot of ${n ? n.toLocaleString() : "a few hundred"} English Wikipedia articles` +
-    ` (Nobel Prizes, quantum computing, AI)${date ? ` from ${date}` : ""} — not all of Wikipedia.`,
+  scope: (n: number | null, date: string | null, added = 0) =>
+    `Searches ${n ? n.toLocaleString() : "a few hundred"} local English Wikipedia articles` +
+    ` (Nobel Prizes, quantum computing, AI${date ? `; snapshot ${date}` : ""}` +
+    `${added ? `; ${added} added by AI Mode` : ""}) — not all of Wikipedia.` +
+    ` When the local evidence is weak, AI Mode looks up Wikipedia and adds a few articles.`,
   searchPlaceholder: "Ask anything about recent Nobel Prizes or quantum computing…",
   searchAria: "Search query",
   submit: "Search",
@@ -80,6 +82,10 @@ export const strings = {
     answerFailed: "The AI answer could not be generated.",
     answerInterrupted: "The answer was interrupted.",
     retry: "Try again",
+    wikiSearch: "Evidence in the local corpus is weak — searching Wikipedia…",
+    wikiAdding: (title: string) => `Adding from Wikipedia: ${title}…`,
+    wikiAdded: "Added to the corpus from Wikipedia for this question:",
+    wikiUnavailable: "Wikipedia could not be reached, so the answer uses only the local corpus.",
     errorReason: "Model server",
     queued: "Waiting for the previous answer to stop…",
     modelLoading: (model: string, s: number) =>

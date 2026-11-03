@@ -42,16 +42,25 @@ def _check_db() -> dict:
             has_vector = conn.execute(
                 "SELECT COUNT(*) FROM pg_extension WHERE extname = 'vector'"
             ).fetchone()[0]
-            doc_count = chunk_count = 0
+            doc_count = chunk_count = dynamic_count = 0
             snapshot = None
             reg = conn.execute(
                 "SELECT to_regclass('public.documents'), to_regclass('public.chunks')"
             ).fetchone()
             if reg[0]:
                 doc_count = conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
-                snapshot = conn.execute(
-                    "SELECT MAX(fetched_at) FROM documents"
-                ).fetchone()[0]
+                # the snapshot date ignores articles AI Mode added later
+                cols = {r[0] for r in conn.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'documents'").fetchall()}
+                if "origin" in cols:
+                    snapshot = conn.execute("SELECT MAX(fetched_at) FROM documents "
+                                            "WHERE origin = 'snapshot'").fetchone()[0]
+                    dynamic_count = conn.execute("SELECT COUNT(*) FROM documents "
+                                                 "WHERE origin = 'dynamic'").fetchone()[0]
+                else:
+                    snapshot = conn.execute(
+                        "SELECT MAX(fetched_at) FROM documents").fetchone()[0]
             if reg[1]:
                 chunk_count = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
         return {
@@ -59,6 +68,7 @@ def _check_db() -> dict:
             "vector_extension": bool(has_vector),
             "migrated": bool(reg[0] and reg[1]),
             "documents": doc_count,
+            "dynamic_documents": dynamic_count,
             "chunks": chunk_count,
             "snapshot_at": snapshot.isoformat() if snapshot else None,
         }
@@ -158,6 +168,7 @@ def health() -> dict:
     overall = "ok" if components["db"]["status"] in {"ok", "empty"} else "degraded"
     corpus = {
         "documents": components["db"].get("documents", 0),
+        "dynamic_documents": components["db"].get("dynamic_documents", 0),
         "chunks": components["db"].get("chunks", 0),
         "snapshot_at": components["db"].get("snapshot_at"),
     }

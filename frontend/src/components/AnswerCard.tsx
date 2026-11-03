@@ -22,6 +22,9 @@ interface AnswerCardProps {
 /** One line describing what is happening while no answer text is shown yet. */
 function progressText(status?: StatusEvent | null, step?: TraceStep | null): string {
   if (status?.stage === "queued") return strings.results.queued;
+  if (status?.stage === "wiki_search") return strings.results.wikiSearch;
+  if (status?.stage === "wiki_fetch" || status?.stage === "wiki_store")
+    return strings.results.wikiAdding(status.title ?? "");
   if (status?.stage === "model_loading")
     return strings.results.modelLoading(status.model ?? "", status.elapsed_s ?? 0);
   if (step) return strings.results.agentStep(step.step, step.input);

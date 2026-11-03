@@ -162,6 +162,26 @@ export function Results() {
           />
         ) : null}
 
+        {state.wiki && (state.wiki.added?.length || state.wiki.error === "wikipedia_unavailable") ? (
+          <p className="text-xs text-content-muted" data-testid="wiki-note">
+            {state.wiki.added?.length ? (
+              <>
+                {strings.results.wikiAdded}{" "}
+                {state.wiki.added.map((a, i) => (
+                  <span key={a.url}>
+                    {i > 0 && ", "}
+                    <a href={a.url} target="_blank" rel="noreferrer" className="text-link hover:underline">
+                      {a.title}
+                    </a>
+                  </span>
+                ))}
+              </>
+            ) : (
+              strings.results.wikiUnavailable
+            )}
+          </p>
+        ) : null}
+
         {state.phase === "done" && state.abstained && (
           <p className="text-sm text-content-muted">{strings.results.abstained}</p>
         )}

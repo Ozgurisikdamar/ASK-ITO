@@ -56,6 +56,7 @@ class WikiClient:
         max_backoff: float = 120.0,
         transport: httpx.BaseTransport | None = None,
         backend: str | None = None,
+        timeout: float = 60.0,
     ) -> None:
         self.user_agent = user_agent or settings.wiki_user_agent
         self.delay = delay
@@ -65,7 +66,7 @@ class WikiClient:
         self.backend = backend or settings.wiki_http_backend  # auto | httpx | curl
         self._client = httpx.Client(
             headers={"User-Agent": self.user_agent},
-            timeout=60.0,
+            timeout=timeout,
             follow_redirects=True,
             transport=transport,
         )
@@ -196,6 +197,16 @@ class WikiClient:
             "disambiguation" in c.lower() for c in result.categories
         )
         return result
+
+    def search_titles(self, query: str, limit: int = 5) -> list[str]:
+        """Titles of the best-matching namespace-0 articles (MediaWiki full-text
+        search). The query is sent to Wikipedia: callers decide when that is allowed."""
+        data = self._get({
+            "action": "query", "list": "search", "srsearch": query[:300],
+            "srnamespace": 0, "srlimit": max(1, min(limit, 20)), "srprop": "",
+        })
+        return [hit["title"] for hit in data.get("query", {}).get("search", [])
+                if hit.get("title")]
 
     def fetch_links(self, title: str, limit: int = 2000) -> list[str]:
         """Namespace-0 outgoing links, paginated via `continue`."""

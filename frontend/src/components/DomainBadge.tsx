@@ -2,6 +2,7 @@ const LABELS: Record<string, string> = {
   nobel: "Nobel",
   quantum: "Quantum",
   ai: "AI",
+  general: "Added from Wikipedia",
 };
 
 export function DomainBadge({ domain }: { domain: string }) {

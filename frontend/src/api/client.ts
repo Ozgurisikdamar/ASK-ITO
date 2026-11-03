@@ -14,6 +14,7 @@ export interface HealthResponse {
   components: Record<string, ComponentStatus>;
   corpus: {
     documents: number;
+    dynamic_documents?: number; // added by AI Mode from Wikipedia
     chunks: number;
     snapshot_at: string | null;
   };
@@ -82,10 +83,14 @@ export interface DoneEvent {
 /** Progress that is not an answer yet: waiting for a free slot or for the
  * local model to load into memory (a cold Q8_0 load can take minutes). */
 export interface StatusEvent {
-  stage: "queued" | "model_loading" | "model_loaded" | string;
+  stage: "queued" | "model_loading" | "model_loaded" | "route" | "wiki_search" | "wiki_fetch"
+    | "wiki_store" | "wiki_done" | string;
   model?: string;
   elapsed_s?: number;
   rid?: string;
+  title?: string; // wiki_fetch / wiki_store
+  added?: { title: string; url: string; chunks: number }[]; // wiki_done
+  error?: string | null; // wiki_done: wikipedia_unavailable | busy
 }
 
 /** Error event: `error` is a stable code (model_memory, model_not_found,

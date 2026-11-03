@@ -20,6 +20,7 @@ export interface SearchState {
   reranker: string | null;
   abstained: boolean;
   status: StatusEvent | null; // queued / loading the model
+  wiki: StatusEvent | null; // what AI Mode added from Wikipedia (wiki_done)
   error: string | null; // message shown to the user
   errorCode: string | null;
   errorReason: string | null;
@@ -41,6 +42,7 @@ export const initialState: SearchState = {
   reranker: null,
   abstained: false,
   status: null,
+  wiki: null,
   error: null,
   errorCode: null,
   errorReason: null,
@@ -95,7 +97,9 @@ export function reducer(state: SearchState, action: Action): SearchState {
         abstained: !!action.data.abstained,
       };
     case "status":
-      return { ...state, status: action.data };
+      return action.data.stage === "wiki_done"
+        ? { ...state, wiki: action.data }
+        : { ...state, status: action.data };
     case "error":
       // keep results, sources and any partial answer: only the generation failed
       return {

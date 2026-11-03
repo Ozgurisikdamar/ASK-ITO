@@ -129,6 +129,36 @@ def _bridge(fn):
         yield ev, data
 
 
+def _evidence_check(q: str, domain: str, t0: float):
+    """AI Mode: is the local evidence strong enough? Runs the Answer retrieval
+    (hybrid + reranker; the result is cached and reused by the answer path),
+    shows its results at once and returns True when the best reranker score is
+    below LIVE_INGEST_MIN_SCORE (a heuristic calibrated on a small set)."""
+    k = service.context_k("overview")
+    res = pipeline.run_retrieval(q, "overview", domain=domain, final_k=k)
+    ranked = res.ranked or res.final
+    results = service.results_payload(ranked, q)
+    yield "results", {"results": results, "total": len(results), "stage": "final",
+                      "timings": {"results": _ms(t0)}, "cached": res.cached}
+    if not pipeline.uses_reranker("overview"):
+        return False  # without the calibrated reranker there is no usable score
+    top = float(ranked[0][1]) if ranked else 0.0
+    return top < settings.live_ingest_min_score
+
+
+def _wiki_ingest(q: str):
+    """Fetch missing evidence from Wikipedia into the corpus (app.ingest.live),
+    forwarding its progress as status events. Failures only skip the step."""
+    from app.ingest import live
+
+    def run(emit):
+        return live.ingest_for_query(
+            q, progress=lambda stage, data: emit("status", {"stage": stage, **data}))
+
+    res = yield from _bridge(run)
+    yield "status", {"stage": "wiki_done", **res.as_dict()}
+
+
 def _produce(q: str, mode: str, domain: str, cancel: threading.Event):
     t0 = time.perf_counter()
     timings: dict[str, int] = {}
@@ -140,6 +170,12 @@ def _produce(q: str, mode: str, domain: str, cancel: threading.Event):
     if mode == "ai":  # AI Mode: one grounded answer, or the agent when needed
         from app.agent.router import route
 
+        if settings.live_ingest_enabled and domain == "all":
+            weak = yield from _evidence_check(q, domain, t0)
+            if weak and not cancel.is_set():
+                yield from _wiki_ingest(q)
+            if cancel.is_set():
+                return
         path, reason = route(q)
         yield "status", {"stage": "route", "route": path, "reason": reason}
         inner = _produce_agentic(q, domain, cancel, t0) if path == "agent" \

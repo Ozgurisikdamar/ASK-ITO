@@ -80,6 +80,18 @@ class Settings(BaseSettings):
     # curl if the egress is fingerprint-blocked (HTTP 403); "httpx"/"curl" force one.
     wiki_http_backend: str = "auto"
     ingest_min_chars: int = 1500  # drop expansion pages shorter than this
+    # AI Mode adds Wikipedia articles when the local evidence is weak (app.ingest.live).
+    # The question's search terms are sent to Wikipedia only in that case.
+    live_ingest_enabled: bool = True
+    # Trigger: top reranker score below this. Calibration set (bge-reranker-base):
+    # answerable questions 0.98-1.00; near-domain unsupported 10 of 12 below 0.95.
+    live_ingest_min_score: float = 0.95
+    live_ingest_max_articles: int = 2
+    live_ingest_search_limit: int = 5
+    live_ingest_max_chars: int = 40000  # per article (about 25 chunks)
+    live_ingest_timeout_s: float = 30.0  # Wikipedia search + fetch budget
+    live_ingest_http_timeout_s: float = 10.0
+    live_ingest_delay_s: float = 0.2
     ingest_expand_min_links: int = 2  # candidate must be linked by >= N seeds
     ingest_expand_max_nobel: int = 60
     ingest_expand_max_quantum: int = 30

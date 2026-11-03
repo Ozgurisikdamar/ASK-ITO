@@ -8,7 +8,11 @@ for indexing and querying (consistent analysis, per the Qdrant-1.20 note).
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import tempfile
 import threading
+import time
 from functools import lru_cache
 from pathlib import Path
 
@@ -16,7 +20,9 @@ import bm25s
 
 from app.config import settings
 
-BM25_DIR = Path(__file__).resolve().parents[2] / "data" / "bm25"
+# ASKITO_BM25_DIR lets an integration test use a throw-away index directory.
+BM25_DIR = Path(os.environ.get("ASKITO_BM25_DIR")
+                or Path(__file__).resolve().parents[2] / "data" / "bm25")
 IDS_FILE = BM25_DIR / "chunk_ids.json"
 META_FILE = BM25_DIR / "_meta.json"
 
@@ -45,16 +51,26 @@ def _tokenize(texts: list[str]):
 
 
 def build(chunk_ids: list[int], texts: list[str]) -> int:
+    """Build the index into a temporary directory, then move the files into place
+    with the metadata file last. Readers reload only when `_meta.json` changes
+    (index_version), so they never see a half-written index; the move holds the
+    searcher lock so this process cannot load in between either."""
     BM25_DIR.mkdir(parents=True, exist_ok=True)
     tokens = _tokenize(texts)
     retriever = bm25s.BM25(k1=settings.bm25_k1, b=settings.bm25_b)
     retriever.index(tokens, show_progress=False)
-    retriever.save(str(BM25_DIR))
-    IDS_FILE.write_text(json.dumps(chunk_ids), encoding="utf-8")
-    META_FILE.write_text(
-        json.dumps({"count": len(chunk_ids), "k1": settings.bm25_k1, "b": settings.bm25_b}),
-        encoding="utf-8",
-    )
+    tmp = Path(tempfile.mkdtemp(prefix=".bm25-", dir=BM25_DIR.parent))
+    try:
+        retriever.save(str(tmp))
+        (tmp / IDS_FILE.name).write_text(json.dumps(chunk_ids), encoding="utf-8")
+        meta = {"count": len(chunk_ids), "k1": settings.bm25_k1, "b": settings.bm25_b,
+                "built_at_ns": time.time_ns()}  # always a new version
+        (tmp / META_FILE.name).write_text(json.dumps(meta), encoding="utf-8")
+        with _searcher_lock:
+            for f in sorted(tmp.iterdir(), key=lambda p: p.name == META_FILE.name):
+                os.replace(f, BM25_DIR / f.name)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
     return len(chunk_ids)
 
 

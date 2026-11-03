@@ -12,3 +12,6 @@ os.environ.setdefault("PREWARM_FEATURED", "false")
 # tool cache has its own tests that switch it on.
 os.environ.setdefault("AGENT_TOOL_CACHE", "false")
 os.environ.setdefault("REDIS_ENABLED", "false")
+# AI Mode would search Wikipedia on weak evidence; tests that cover it switch it on
+# with a fake client.
+os.environ.setdefault("LIVE_INGEST_ENABLED", "false")

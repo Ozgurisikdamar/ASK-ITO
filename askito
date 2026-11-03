@@ -43,6 +43,9 @@ case "$cmd" in
     [ -f .env ] || { cp .env.example .env; echo "created .env from .env.example"; }
     migrate_env_model
     "${COMPOSE[@]}" up -d --build
+    # new schema changes (e.g. 0004 for AI Mode's Wikipedia articles); idempotent
+    exec_backend python -m app.db.migrate | tail -1 \
+      || echo "warning: database migrations failed; run ./askito migrate"
     echo "UI: http://localhost:5173   API: http://localhost:8000/api/health"
     ;;
   dev)      "${COMPOSE[@]}" "${DEV_FILES[@]}" up -d --build ;;

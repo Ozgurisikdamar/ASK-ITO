@@ -12,7 +12,7 @@ export function CorpusScope({ className = "" }: { className?: string }) {
   const date = corpus?.snapshot_at ? new Date(corpus.snapshot_at).toISOString().slice(0, 10) : null;
   return (
     <p className={"text-xs text-content-muted " + className}>
-      {strings.scope(n ?? null, date)}
+      {strings.scope(n ?? null, date, corpus?.dynamic_documents ?? 0)}
     </p>
   );
 }
