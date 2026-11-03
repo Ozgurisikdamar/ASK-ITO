@@ -85,7 +85,7 @@ commands below run in **Git Bash**; `./askito` replaces `make` (both exist).
 
 ```bash
 ./askito up              # creates .env from .env.example if missing; starts everything
-./askito model           # one-time: pull the LLM (LLM_DEFAULT_MODEL) into Ollama
+./askito model           # optional: pull the LLM for generated answers
 ./askito setup           # first run: migrate + ingest (Wikipedia) + index
 ```
 
@@ -98,6 +98,28 @@ backend without `--reload`. For hot reload during development use
 `./askito dev` (vite dev server + `uvicorn --reload`).
 
 With `make`: `make up`, `make model`, `make migrate`, `make ingest`, `make index`.
+
+### Local use and Netlify
+
+Docker Compose runs the frontend, FastAPI backend, PostgreSQL, Redis and Ollama
+on the same machine. No separately hosted backend is needed for local use. Open
+the UI at `http://localhost:5173`; the frontend's nginx proxy sends `/api/*` to
+the local backend.
+
+On a fresh checkout, `./askito setup` downloads the Wikipedia snapshot and builds
+the pgvector and BM25 indexes. The first embedding/index pass is CPU-intensive
+and can take a while. Search is ready when `./askito health` reports a nonzero
+chunk count and BM25 as available. Ollama is not needed for Sources/Search mode;
+`./askito model` is only needed for locally generated AI answers.
+
+Netlify publishes only the static frontend; the catch-all redirect in
+`netlify.toml` sends unknown paths (including `/api/*`) to `index.html`. To use a
+separately hosted backend, set the frontend build environment variable
+`VITE_API_BASE` to its public HTTPS origin (for example,
+`https://api.example.com`) and set the backend's `FRONTEND_ORIGIN` to
+`https://ask-ito.netlify.app`, then redeploy. Do not use `localhost` for
+`VITE_API_BASE` on Netlify: it refers to each visitor's own computer. A Netlify
+deploy does not provision the backend, database, Redis or Ollama services.
 
 ### Build the corpus and index
 
