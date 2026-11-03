@@ -141,12 +141,15 @@ class Settings(BaseSettings):
     answer_context_chars: int = 900
     answer_max_tokens: int = 600
     answer_cache_enabled: bool = True
-    prompt_version: str = "v2"  # part of the answer-cache key
+    prompt_version: str = "v3"  # part of the answer-cache key (bump on prompt changes)
 
     # Startup
     warmup_on_start: bool = True
     prewarm_featured: bool = True  # pre-compute answers for the featured queries
     sse_keepalive_s: float = 10.0
+    # Requests allowed to run an LLM at the same time (search needs none). A local
+    # model serves one request at a time; extra answer requests get "busy".
+    max_concurrent_generations: int = 1
 
     # Test set generation (M7)
     testset_target: int = 180  # total draft questions to aim for

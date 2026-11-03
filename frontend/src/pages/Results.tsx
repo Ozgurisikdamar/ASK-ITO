@@ -144,6 +144,11 @@ export function Results() {
           <div>
             <p className="text-sm text-content-muted">
               {strings.results.stats(state.results.length, resultsMs)}
+              {state.resultsCached && (
+                <span className="ml-2 rounded-full border border-mauve-200 px-2 py-0.5 text-xs">
+                  {strings.results.cachedResults}
+                </span>
+              )}
             </p>
             <CorpusScope />
           </div>

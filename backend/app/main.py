@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api import eval as eval_api, health, search, stream, suggest
 from app.config import settings
@@ -29,6 +30,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def unhandled_error(_request: Request, exc: Exception):
+    """Last-resort handler: generic message + error id; details only in the log."""
+    from app.api.errors import safe_error
+
+    return JSONResponse(status_code=500, content=safe_error("internal_error", exc))
+
 
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(search.router, prefix="/api", tags=["search"])

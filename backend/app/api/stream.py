@@ -25,6 +25,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 from app.agent.answer import stream_answer
+from app.api.errors import generation_limiter, needs_generation, safe_error
 from app.config import settings
 from app.llm.metrics import log_request, recording
 from app.retrieval import answer_cache, pipeline, service
@@ -192,11 +193,15 @@ def event_stream(q: str, mode: str, domain: str):
                 if cancel.is_set():
                     break
                 items.put((event, data))
-        except Exception as exc:  # noqa: BLE001
-            items.put(("error", {"error": "search_failed", "detail": str(exc)}))
+        except Exception as exc:  # noqa: BLE001  (details are logged, not sent)
+            items.put(("error", safe_error("search_failed", exc)))
         finally:
             items.put(None)
 
+    holds_slot = needs_generation(mode)
+    if holds_slot and not generation_limiter.try_acquire():
+        yield _sse("error", safe_error("busy"))
+        return
     activity.enter()
     threading.Thread(target=worker, name="askito-search", daemon=True).start()
     try:
@@ -212,6 +217,8 @@ def event_stream(q: str, mode: str, domain: str):
     finally:
         cancel.set()  # client gone or stream finished: stop the LLM
         activity.exit()
+        if holds_slot:
+            generation_limiter.release()
 
 
 @router.get("/search/stream")

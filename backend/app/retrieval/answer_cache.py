@@ -6,24 +6,32 @@ import json
 
 from app.config import settings
 from app.db.connection import get_connection
-from app.index.bm25_index import index_version
 
 
 def _model_tag() -> str:
     return f"{settings.llm_mode}:{settings.model_for('answer')}"
 
 
-def make_key(query: str, mode: str, domain: str | None) -> str:
-    from app.retrieval import pipeline
+def answer_fingerprint(mode: str) -> tuple:
+    """Every setting that changes the answer for a given query: the model and its
+    generation settings, the prompt version, the evidence cut-off, the context
+    budget, and the retrieval fingerprint (which includes the index version)."""
+    from app.retrieval import pipeline, service
 
-    parts = [
-        " ".join(query.lower().split()), mode, domain or "all", _model_tag(),
-        settings.prompt_version, index_version(),
-        # retrieval settings that change the context given to the model
-        str(pipeline.uses_reranker(mode)), settings.reranker_model,
-        str(pipeline.channel_k(mode)), str(settings.fast_min_evidence_score),
-        str(settings.overview_context_chunks), str(settings.overview_context_chars),
-    ]
+    return (
+        _model_tag(), settings.llm_think, settings.llm_num_ctx, settings.prompt_version,
+        settings.overview_max_tokens, settings.answer_max_tokens,
+        settings.overview_context_chunks, settings.overview_context_chars,
+        settings.answer_context_chars, settings.final_k,
+        service.evidence_cutoff_active(mode), settings.fast_min_evidence_score,
+        settings.evidence_score_model,
+        pipeline.retrieval_fingerprint(mode),
+    )
+
+
+def make_key(query: str, mode: str, domain: str | None) -> str:
+    parts = [" ".join(query.lower().split()), mode, domain or "all",
+             repr(answer_fingerprint(mode))]
     return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
 
 

@@ -92,7 +92,9 @@ def test_sse_worker_error_becomes_error_event(monkeypatch):
     monkeypatch.setattr(stream_api, "produce", boom)
     events = _events(client.get("/api/search/stream", params={"q": "x"}).text)
     assert events[-1][0] == "error"
-    assert events[-1][1] == {"error": "search_failed", "detail": "db down"}
+    err = events[-1][1]
+    assert err["error"] == "search_failed" and err["error_id"]
+    assert "db down" not in str(err)  # internals are logged, not sent
 
 
 def test_sse_rejects_bad_mode_with_error_event():

@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from app.api.errors import generation_limiter, needs_generation, safe_error
 from app.config import settings
 from app.retrieval import pipeline
 from app.retrieval.service import run_search
@@ -34,13 +35,17 @@ def search(req: SearchRequest):
             status_code=400,
             content={"error": "bad_domain", "detail": "domain must be all|nobel|quantum|ai"},
         )
+    holds_slot = needs_generation(req.mode)
+    if holds_slot and not generation_limiter.try_acquire():
+        return JSONResponse(status_code=429, content=safe_error("busy"))
     try:
         if req.mode == "agentic":
             from app.agent.loop import run_agent
 
             return run_agent(req.query, req.domain, req.final_k or settings.final_k)
         return run_search(req.query, req.mode, req.domain, req.final_k)
-    except Exception as exc:  # noqa: BLE001
-        return JSONResponse(
-            status_code=500, content={"error": "search_failed", "detail": str(exc)}
-        )
+    except Exception as exc:  # noqa: BLE001  (details are logged, not returned)
+        return JSONResponse(status_code=500, content=safe_error("search_failed", exc))
+    finally:
+        if holds_slot:
+            generation_limiter.release()

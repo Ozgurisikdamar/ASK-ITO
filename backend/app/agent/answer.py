@@ -22,6 +22,7 @@ from app.retrieval.hydrate import ChunkInfo, body_without_prefix
 
 log = logging.getLogger("askito.answer")
 _CITE = re.compile(r"\[(\d+)\]")
+_PASSAGE_TAG = re.compile(r"</?\s*passage\b", re.IGNORECASE)
 NOT_FOUND = "I could not find this in the sources."
 
 
@@ -60,7 +61,10 @@ def build_context(sources: list[Source], max_chars: int | None = None) -> str:
             trimmed_chars += len(full) - max_chars
         kept_chars += len(body)
         header = s.info.doc_title + (f" > {s.info.section}" if s.info.section else "")
-        blocks.append(f"[{s.n}] {header}\n{body}")
+        # Retrieved text is untrusted: keep it inside its own delimiters so it cannot
+        # close the block and pose as instructions.
+        safe = _PASSAGE_TAG.sub(lambda m: m.group(0).replace("<", "&lt;"), f"{header}\n{body}")
+        blocks.append(f'<passage n="{s.n}">\n[{s.n}] {safe}\n</passage>')
     trim = {"sources": len(sources), "trimmed_sources": trimmed_sources,
             "chars_trimmed": trimmed_chars, "chars_kept": kept_chars, "max_chars": max_chars}
     if trimmed_sources:

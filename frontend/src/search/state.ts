@@ -12,7 +12,8 @@ export interface SearchState {
   citations: Citation[];
   steps: TraceStep[];
   timings: Record<string, number>;
-  cached: boolean;
+  cached: boolean; // answer served from the answer cache
+  resultsCached: boolean; // ranked results served from the retrieval cache
   model: string | null;
   reranker: string | null;
   abstained: boolean;
@@ -30,6 +31,7 @@ export const initialState: SearchState = {
   steps: [],
   timings: {},
   cached: false,
+  resultsCached: false,
   model: null,
   reranker: null,
   abstained: false,
@@ -56,7 +58,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
         results: action.data.results,
         resultsStage: action.data.stage ?? null,
         timings: { ...state.timings, ...action.data.timings },
-        cached: !!action.data.cached,
+        resultsCached: !!action.data.cached,
       };
     case "reranked":
       return {

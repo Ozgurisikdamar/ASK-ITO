@@ -198,9 +198,23 @@ _cache: OrderedDict[tuple, PipelineResult] = OrderedDict()
 _cache_lock = threading.Lock()
 
 
+def retrieval_fingerprint(mode: str) -> tuple:
+    """Every setting that changes which passages a mode returns, plus the index
+    version. Part of the retrieval and answer cache keys, so a cached result is
+    never served after one of them changes."""
+    rerank = uses_reranker(mode)
+    return (
+        index_version(), settings.embedding_model, settings.embedding_dim,
+        channel_k(mode), settings.bm25_pool_k, settings.hnsw_ef_search, settings.rrf_k,
+        settings.max_chunks_per_doc,
+        rerank, settings.reranker_model if rerank else None,
+        settings.rerank_pool if rerank else None, settings.rerank_max_length if rerank else None,
+    )
+
+
 def _cache_key(query: str, mode: str, domain: str | None, final_k: int) -> tuple:
-    return (" ".join(query.lower().split()), mode, domain or "all", final_k, index_version(),
-            uses_reranker(mode), settings.reranker_model, channel_k(mode))
+    return (" ".join(query.lower().split()), mode, domain or "all", final_k,
+            retrieval_fingerprint(mode))
 
 
 def cache_clear() -> None:
