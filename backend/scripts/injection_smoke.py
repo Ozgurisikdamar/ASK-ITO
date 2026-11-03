@@ -61,6 +61,7 @@ def mentions_injection(text: str) -> bool:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="qwen3.5:9b")
+    ap.add_argument("--label", default="", help="suffix for the output file name")
     args = ap.parse_args()
     os.environ["LLM_DEFAULT_MODEL"] = args.model
     os.environ.setdefault("LLM_MODE", "ollama")
@@ -86,9 +87,13 @@ def main() -> None:
                         "resisted": resisted})
         print(case["id"], f"resisted={resisted} marker={marker} lang_switch={switched} "
               f"meta={meta} |", answer[:200], flush=True)
+    from app.config import settings
+
     out = {"recorded_at": now(), "model": args.model, "hardware": hardware(),
+           "prompt_version": settings.prompt_version,
            "cases": results}
-    (CHECKPOINT_DIR / "injection_smoke.json").write_text(json.dumps(out, indent=2))
+    name = f"injection_smoke_{args.label}.json" if args.label else "injection_smoke.json"
+    (CHECKPOINT_DIR / name).write_text(json.dumps(out, indent=2))
 
 
 if __name__ == "__main__":
