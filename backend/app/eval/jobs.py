@@ -51,8 +51,10 @@ def _ensure_model(modes: list[str], answers: bool) -> None:
         client.ensure_loaded(model)
 
 
-def start(configs: list[str], *, answers: bool, ragas: bool) -> dict:
+def start(configs: list[str], *, answers: bool, ragas: bool,
+          subset: str | None = None) -> dict:
     """Validate, prepare the questions, queue the runs and start the thread.
+    `subset` (a name in eval/subsets.json) runs only that stratified slice.
     Raises ValueError (bad request), EvalBusy, or RuntimeError (no questions)."""
     from app.eval import run as eval_run
 
@@ -65,7 +67,7 @@ def start(configs: list[str], *, answers: bool, ragas: bool) -> dict:
     try:
         conn = psycopg.connect(settings.database_url)
         try:
-            questions, prep = eval_run.load_questions(conn)
+            questions, prep = eval_run.load_questions(conn, subset)
             run_ids = [eval_run.create_run(conn, m, answers=answers, ragas=ragas,
                                            status="queued", source="api") for m in modes]
         except BaseException:
@@ -77,7 +79,7 @@ def start(configs: list[str], *, answers: bool, ragas: bool) -> dict:
         _lock.release()
         raise
     return {"configs": modes, "run_ids": run_ids, "questions": len(questions),
-            "skipped": prep["skipped"]}
+            "subset": subset, "skipped": prep["skipped"]}
 
 
 def _work(conn, modes, run_ids, questions, answers, ragas) -> None:

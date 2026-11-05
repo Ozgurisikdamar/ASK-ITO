@@ -343,3 +343,26 @@ prefills the retrieved context in ~15–25 s and then generates at ~3 tokens/s, 
 a ~300-token cited answer is tens of seconds to a couple of minutes on its own.
 The levers for that call are a smaller answer model (e.g. `qwen3.5:4b`), fewer
 output tokens (`OVERVIEW_MAX_TOKENS`) or a GPU — not fewer agent steps.
+
+## ADR-0025: Faster, clearer evaluation — question subsets, fusion weights, honest metrics
+Running the whole 46-question test set from the evaluation panel is slow (the
+cross-encoder reranker is ~8 s/question on CPU, so a `hybrid_rerank` run is
+~6 min), and the ablation table was easy to misread.
+
+- **Question subsets.** The stratified subsets in `eval/subsets.json` (lat12,
+  sub20, rag6, rag3) are now selectable from the evaluation page and from
+  `./askito eval --subset <name>`. A run filters the prepared questions to that
+  slice, so a retrieval-only `hybrid_rerank` run drops from ~6 min to ~1.5 min
+  (lat12), and answers + RAGAS become feasible on CPU. Subset numbers are noisier
+  and are not comparable with full-set numbers.
+- **RRF fusion weights.** `RRF_BM25_WEIGHT` / `RRF_VECTOR_WEIGHT` (default
+  1.0/1.0 = unchanged) scale each channel in the hybrid fusion. On the eval set
+  the dense channel alone can beat the even blend on doc_recall, so the weights
+  are a cheap, re-index-free lever to tune (quick to verify on a subset). They
+  are part of the retrieval/answer cache fingerprint, so changing them invalidates
+  stale cached results.
+- **Honest metrics.** The panel now states that doc_* metrics are the primary
+  signal; chunk_recall reads low partly because gold chunks are labelled by a
+  full-text ranker (`gold.best_chunks`), not the embedding/BM25 retriever, so the
+  system can find the right document but a different chunk. The RAGAS rows stay
+  "—" until a run generates answers and enables the judge.

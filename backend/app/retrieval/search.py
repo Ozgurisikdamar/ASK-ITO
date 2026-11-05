@@ -36,15 +36,22 @@ def vector_search(
 
 
 def rrf_fuse(
-    ranked_lists: list[list[tuple[int, float]]], k: int | None = None
+    ranked_lists: list[list[tuple[int, float]]], k: int | None = None,
+    weights: list[float] | None = None,
 ) -> list[tuple[int, float]]:
-    """Reciprocal Rank Fusion. Returns [(chunk_id, rrf_score)] best-first."""
+    """Reciprocal Rank Fusion. Returns [(chunk_id, rrf_score)] best-first.
+    `weights` scales each input list's contribution (default 1.0 each)."""
     k = k or settings.rrf_k
     scores: dict[int, float] = {}
-    for ranked in ranked_lists:
+    for i, ranked in enumerate(ranked_lists):
+        w = weights[i] if weights and i < len(weights) else 1.0
         for rank, (cid, _score) in enumerate(ranked, start=1):
-            scores[cid] = scores.get(cid, 0.0) + 1.0 / (k + rank)
+            scores[cid] = scores.get(cid, 0.0) + w / (k + rank)
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+
+def _rrf_weights() -> list[float]:
+    return [settings.rrf_bm25_weight, settings.rrf_vector_weight]
 
 
 def hybrid_search(
@@ -52,4 +59,4 @@ def hybrid_search(
 ) -> list[tuple[int, float]]:
     bm = bm25_search(query, settings.bm25_top_k, domain=domain)
     vec = vector_search(query, settings.vector_top_k, domain=domain)
-    return rrf_fuse([bm, vec])[: (k or settings.final_k)]
+    return rrf_fuse([bm, vec], weights=_rrf_weights())[: (k or settings.final_k)]

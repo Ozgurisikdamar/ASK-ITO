@@ -253,7 +253,11 @@ export interface EvalRun {
   options?: { answers: boolean; ragas: boolean };
 }
 
-export async function getRuns(): Promise<{ runs: EvalRun[]; active?: boolean }> {
+export async function getRuns(): Promise<{
+  runs: EvalRun[];
+  active?: boolean;
+  subsets?: { name: string; count: number }[];
+}> {
   const r = await fetch(apiUrl("/api/eval/runs"));
   if (!r.ok) throw new Error(`runs failed: ${r.status}`);
   return r.json();
@@ -315,12 +319,13 @@ export interface StartedRun {
   configs: string[];
   run_ids: number[];
   questions: number;
+  subset?: string | null;
   skipped: { id: string; reason: string }[];
 }
 
 export async function startRun(
   configs: string[],
-  opts: { answers: boolean; ragas: boolean },
+  opts: { answers: boolean; ragas: boolean; subset?: string | null },
 ): Promise<StartedRun> {
   const r = await fetch(apiUrl("/api/eval/runs"), {
     method: "POST",

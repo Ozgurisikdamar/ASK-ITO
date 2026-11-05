@@ -113,6 +113,12 @@ class Settings(BaseSettings):
     vector_top_k: int = 50
     hnsw_ef_search: int = 100  # pgvector HNSW candidate list (default 40 caps top-k)
     rrf_k: int = 60
+    # Reciprocal Rank Fusion channel weights for the hybrid modes. 1.0/1.0 is
+    # plain RRF (no change). On the eval set the dense channel alone can beat the
+    # even blend on doc_recall, so raising RRF_VECTOR_WEIGHT biases fusion toward
+    # vectors; tune it on a fast question subset and re-check doc_recall/nDCG.
+    rrf_bm25_weight: float = 1.0
+    rrf_vector_weight: float = 1.0
     rerank_pool: int = 20
     rerank_max_length: int = 512  # tokens per (query, passage) pair (bge-reranker-base maximum)
     rerank_batch_size: int = 32

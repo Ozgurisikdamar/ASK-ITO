@@ -9,6 +9,9 @@ EVAL_DIR = Path(__file__).resolve().parents[2] / "eval"
 TESTSET = EVAL_DIR / "testset.jsonl"
 DRAFT = EVAL_DIR / "testset.draft.jsonl"
 REVIEW_STATE = EVAL_DIR / "testset.review.json"
+# Stratified, deterministic question subsets (scripts/subsets.py builds them);
+# used to run a fast slice of the test set instead of the whole thing.
+SUBSETS = EVAL_DIR / "subsets.json"
 
 QTYPES = ["single_hop", "multi_hop", "comparison", "recent", "quantum", "unanswerable"]
 
@@ -73,3 +76,13 @@ def read_json(path: Path, default):
 def write_json(path: Path, obj) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def subsets() -> dict[str, list[str]]:
+    """Named question subsets {name: [question text, ...]} from subsets.json."""
+    return read_json(SUBSETS, {"subsets": {}}).get("subsets", {})
+
+
+def subset_questions(name: str) -> list[str] | None:
+    """Question texts for a named subset, or None if the name is unknown."""
+    return subsets().get(name)

@@ -42,9 +42,10 @@ def list_runs():
             "options": {"answers": (r[6] or {}).get("answers", True),
                         "ragas": (r[6] or {}).get("ragas", True)},
         })
-    from app.eval import jobs
+    from app.eval import jobs, testset
 
-    return {"runs": out, "active": jobs.active()}
+    subsets = [{"name": n, "count": len(q)} for n, q in testset.subsets().items()]
+    return {"runs": out, "active": jobs.active(), "subsets": subsets}
 
 
 @router.get("/eval/runs/{run_id}")
@@ -104,6 +105,7 @@ class RunRequest(BaseModel):
     configs: list[str]
     answers: bool = True  # False: score the ranked passages only (no LLM answers)
     ragas: bool = True  # RAGAS judge over the answers (needs answers)
+    subset: str | None = None  # run only a named slice from eval/subsets.json
 
 
 @router.post("/eval/runs")
@@ -111,7 +113,8 @@ def start_run(req: RunRequest):
     from app.eval import jobs, run as eval_run
 
     try:
-        job = jobs.start(req.configs, answers=req.answers, ragas=req.ragas)
+        job = jobs.start(req.configs, answers=req.answers, ragas=req.ragas,
+                         subset=req.subset)
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"error": "bad_configs",
                                                       "message": str(exc)})

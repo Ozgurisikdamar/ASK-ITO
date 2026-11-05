@@ -28,11 +28,15 @@ export function EvalPanel() {
   const [answers, setAnswers] = useState(false);
   const [ragas, setRagas] = useState(false);
   const [starting, setStarting] = useState(false);
+  // Question set: "full" = whole test set; a subset name runs a fast slice.
+  const [subset, setSubset] = useState<string>("lat12");
+  const [subsets, setSubsets] = useState<{ name: string; count: number }[]>([]);
 
   function load() {
     getRuns()
       .then((d) => {
         setRuns(d.runs);
+        setSubsets(d.subsets ?? []);
         setError(null);
       })
       .catch((e) => setError(String(e.message ?? e)));
@@ -71,11 +75,12 @@ export function EvalPanel() {
     setError(null);
     setNotice(null);
     try {
-      const r = await startRun(selected, { answers, ragas });
+      const r = await startRun(selected, { answers, ragas, subset: subset === "full" ? null : subset });
       const skipped = r.skipped.length
         ? ` ${r.skipped.length} left out (gold article not in this corpus).`
         : "";
-      setNotice(`Queued ${r.configs.length} configuration(s) over ${r.questions} questions.${skipped}`);
+      const setLabel = subset === "full" ? "full set" : `subset ${subset}`;
+      setNotice(`Queued ${r.configs.length} configuration(s) over ${r.questions} questions (${setLabel}).${skipped}`);
       load();
     } catch (e) {
       setError(String((e as Error).message));
@@ -122,6 +127,21 @@ export function EvalPanel() {
               );
             })}
           </div>
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-content-muted">
+            <label htmlFor="eval-subset" className="font-medium text-content">Question set</label>
+            <select
+              id="eval-subset"
+              value={subset}
+              onChange={(e) => setSubset(e.target.value)}
+              className="rounded-full border border-mauve-200 bg-surface-raised px-3 py-1 text-content"
+            >
+              <option value="full">full — all questions</option>
+              {subsets.map((s) => (
+                <option key={s.name} value={s.name}>{s.name} ({s.count})</option>
+              ))}
+            </select>
+            <span className="text-xs">a smaller set runs much faster (noisier metrics; don’t compare across sets)</span>
+          </div>
           <div className="mb-3 space-y-1 text-sm text-content-muted">
             <label className="flex items-start gap-2">
               <input type="checkbox" className="mt-1" checked={answers} onChange={(e) => toggleAnswers(e.target.checked)} />
@@ -155,6 +175,13 @@ export function EvalPanel() {
         <section className="overflow-x-auto rounded-2xl border border-mauve-200 bg-surface-raised p-4">
           <h2 className="mb-3 font-semibold text-content">Ablation</h2>
           <AblationTable latest={latest} />
+          <p className="mt-3 text-xs text-content-muted">
+            doc_* metrics are the primary signal. chunk_recall is sensitive to how gold chunks
+            are labelled (the top passages are picked by a full-text ranker, not the
+            embedding/BM25 retriever), so it reads lower even when the right document is found.
+            The RAGAS rows (faithfulness, answer_relevancy, context_precision, context_recall)
+            stay “—” until a run uses “Generate answers” + “RAGAS judge”.
+          </p>
         </section>
 
         <section className="rounded-2xl border border-mauve-200 bg-surface-raised p-4">

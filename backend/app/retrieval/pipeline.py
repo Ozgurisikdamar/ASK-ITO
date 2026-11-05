@@ -152,7 +152,8 @@ def candidates(query: str, mode: str, domain: str | None = None) -> Candidates:
         trace.append(_step("vector", t.ms, vec))
         timings["vector"] = t.ms  # pgvector query only
         with _Timer() as t:
-            fused = rrf_fuse([bm, vec])
+            fused = rrf_fuse([bm, vec],
+                             weights=[settings.rrf_bm25_weight, settings.rrf_vector_weight])
         trace.append(_step("rrf", t.ms, fused[: settings.results_max]))
         timings["rrf"] = t.ms
     return Candidates(fused, trace, timings, eff_query, rewritten, emb_src)
@@ -211,6 +212,7 @@ def retrieval_fingerprint(mode: str) -> tuple:
     return (
         index_version(), settings.embedding_model, settings.embedding_dim,
         channel_k(mode), settings.bm25_pool_k, settings.hnsw_ef_search, settings.rrf_k,
+        settings.rrf_bm25_weight, settings.rrf_vector_weight,
         settings.max_chunks_per_doc,
         rerank, settings.reranker_model if rerank else None,
         settings.rerank_pool if rerank else None, settings.rerank_max_length if rerank else None,

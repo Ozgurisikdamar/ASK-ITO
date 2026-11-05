@@ -295,9 +295,14 @@ def check_modes(modes: list[str], answers: bool) -> None:
         raise ValueError(f"these configurations need generated answers: {', '.join(needs)}")
 
 
-def load_questions(conn) -> tuple[list[dict], dict]:
-    """The test set resolved against this corpus, in the shape run_config uses."""
-    from app.eval import prepare
+def _norm_q(text: str) -> str:
+    return " ".join((text or "").split()).lower()
+
+
+def load_questions(conn, subset: str | None = None) -> tuple[list[dict], dict]:
+    """The test set resolved against this corpus, in the shape run_config uses.
+    `subset` (a name in eval/subsets.json) runs only that stratified slice."""
+    from app.eval import prepare, testset
 
     prep = prepare.prepare(conn)
     if not prep["questions"]:
@@ -305,15 +310,25 @@ def load_questions(conn) -> tuple[list[dict], dict]:
                else "none of its gold articles are in this corpus")
         raise NoQuestions(f"No evaluation questions: {why}.")
     ids = {q["id"] for q in prep["questions"]}
-    return [q for q in _questions(conn) if q["id"] in ids], prep
+    questions = [q for q in _questions(conn) if q["id"] in ids]
+    if subset:
+        wanted = testset.subset_questions(subset)
+        if wanted is None:
+            raise ValueError(f"unknown subset: {subset} (known: {', '.join(testset.subsets())})")
+        want = {_norm_q(w) for w in wanted}
+        questions = [q for q in questions if _norm_q(q["question"]) in want]
+        if not questions:
+            raise NoQuestions(f"No evaluation questions: subset '{subset}' has none in this corpus.")
+    return questions, prep
 
 
-def run(configs: list[str], answers: bool = True, ragas: bool = True) -> dict:
+def run(configs: list[str], answers: bool = True, ragas: bool = True,
+        subset: str | None = None) -> dict:
     modes = ALL_MODES if configs == ["all"] else configs
     check_modes(modes, answers)
     results = {}
     with psycopg.connect(settings.database_url) as conn:
-        questions, prep = load_questions(conn)
+        questions, prep = load_questions(conn, subset)
         if prep["skipped"]:
             print(f"[eval] skipped {len(prep['skipped'])} questions: "
                   f"{prep['skipped'][:5]}", flush=True)
@@ -330,10 +345,13 @@ def main() -> None:
     ap.add_argument("--retrieval-only", action="store_true",
                     help="score the ranked passages only; no answers, no RAGAS")
     ap.add_argument("--no-ragas", action="store_true", help="skip the RAGAS judge")
+    ap.add_argument("--subset", default=None,
+                    help="run only a named subset from eval/subsets.json (e.g. lat12, sub20)")
     args = ap.parse_args()
     try:
         out = run([c.strip() for c in args.configs.split(",")],
-                  answers=not args.retrieval_only, ragas=not args.no_ragas)
+                  answers=not args.retrieval_only, ragas=not args.no_ragas,
+                  subset=args.subset)
     except Exception as exc:  # noqa: BLE001
         print(f"eval failed: {exc}", file=sys.stderr)
         sys.exit(1)
