@@ -195,7 +195,7 @@ export function Results() {
         )}
 
         {state.sources.length > 0 && (
-          <details className="rounded-2xl border border-mauve-200 bg-surface-raised p-4" open={mode === "search"}>
+          <details className="rounded-2xl border border-mauve-200 bg-surface-raised p-4">
             <summary className="cursor-pointer text-sm font-medium text-content">
               {mode === "search" ? strings.results.topPassages : strings.results.sourcesUsed} (
               {state.sources.length})
