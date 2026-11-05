@@ -85,6 +85,8 @@ def compare(a: int, b: int):
         ma, mb = fetch(a), fetch(b)
         qinfo = {r[0]: (r[1], r[2]) for r in conn.execute(
             "SELECT id, qtype, domain FROM eval_questions").fetchall()}
+        labels = {r[0]: r[1] for r in conn.execute(
+            "SELECT id, config_name FROM eval_runs WHERE id = ANY(%s)", ([a, b],)).fetchall()}
     rows = []
     for qid in sorted(set(ma) & set(mb)):
         va, vb = ma[qid].get(metric), mb[qid].get(metric)
@@ -93,6 +95,7 @@ def compare(a: int, b: int):
                          "a": va, "b": vb, "delta": round(vb - va, 4)})
     rows.sort(key=lambda x: x["delta"])
     return {"a": a, "b": b, "metric": metric,
+            "config_a": labels.get(a), "config_b": labels.get(b),
             "improved": [r for r in rows if r["delta"] > 0][-10:][::-1],
             "regressed": [r for r in rows if r["delta"] < 0][:10]}
 

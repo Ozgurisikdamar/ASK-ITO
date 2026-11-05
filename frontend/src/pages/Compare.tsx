@@ -6,12 +6,21 @@ import { CompareRow, getCompare } from "../api/client";
 
 export function Compare() {
   const { a, b } = useParams();
-  const [data, setData] = useState<{ metric: string; improved: CompareRow[]; regressed: CompareRow[] } | null>(null);
+  const [data, setData] = useState<{
+    metric: string;
+    config_a?: string | null;
+    config_b?: string | null;
+    improved: CompareRow[];
+    regressed: CompareRow[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     getCompare(Number(a), Number(b)).then(setData).catch((e) => setError(String(e.message ?? e)));
   }, [a, b]);
+
+  const ca = data?.config_a || `run #${a}`;
+  const cb = data?.config_b || `run #${b}`;
 
   return (
     <div className="min-h-screen bg-surface">
@@ -25,12 +34,18 @@ export function Compare() {
         {data && (
           <>
             <h1 className="font-display text-xl font-bold text-content">
-              Compare run #{a} vs #{b}
+              Compare: {ca} vs {cb}
             </h1>
-            <p className="mt-1 text-xs text-content-muted">metric: {data.metric} (Δ = b − a)</p>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-content-muted">
+              <span><span className="font-semibold text-content">A</span> = run #{a} · {ca}</span>
+              <span><span className="font-semibold text-content">B</span> = run #{b} · {cb}</span>
+            </div>
+            <p className="mt-1 text-xs text-content-muted">
+              metric: {data.metric} · each row shows {ca} → {cb} (Δ = B − A)
+            </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Column title="Improved in B" rows={data.improved} positive />
-              <Column title="Regressed in B" rows={data.regressed} positive={false} />
+              <Column title={`Improved in B (${cb})`} rows={data.improved} positive />
+              <Column title={`Regressed in B (${cb})`} rows={data.regressed} positive={false} />
             </div>
           </>
         )}

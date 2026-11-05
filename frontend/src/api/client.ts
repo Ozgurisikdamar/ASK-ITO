@@ -300,6 +300,8 @@ export interface CompareRow {
 
 export async function getCompare(a: number, b: number): Promise<{
   metric: string;
+  config_a?: string | null;
+  config_b?: string | null;
   improved: CompareRow[];
   regressed: CompareRow[];
 }> {
