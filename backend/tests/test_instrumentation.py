@@ -116,10 +116,16 @@ needs_index = pytest.mark.skipif(not _index_ready(), reason="index/DB not built"
 
 
 @needs_index
-def test_agent_metrics_attribute_calls_to_roles():
+def test_agent_metrics_attribute_calls_to_roles(monkeypatch):
     from tests.test_agent import HOPFIELD_Q, ScriptedLLM
 
     from app.agent.loop import run_agent
+    from app.config import settings
+
+    # The lean defaults skip rewrite and remove the sufficiency loop; enable both
+    # so this test can assert every role is attributed.
+    monkeypatch.setattr(settings, "agent_rewrite_policy", "always")
+    monkeypatch.setattr(settings, "agent_max_rounds", 3)
 
     res = run_agent(HOPFIELD_Q, domain="all", final_k=5, llm=ScriptedLLM("A [1]."))
     m = res["metrics"]

@@ -143,15 +143,21 @@ class Settings(BaseSettings):
     # Cache deterministic agent LLM tool calls (rewrite, sufficiency) by complete
     # model + prompt + input key; only at temperature 0 / think off.
     agent_tool_cache: bool = True
-    agent_max_rounds: int = 3
+    # AI Mode rounds. 1 = the sufficiency step is removed entirely: the agent
+    # searches each sub-question once and answers, never calling the LLM
+    # sufficiency check (that single call measured ~2 min on a CPU; ADR-0024).
+    # Raise it to re-enable the follow-up / sufficiency loop.
+    agent_max_rounds: int = 1
     agent_max_llm_calls: int = 10
     agent_timeout_s: int = 180
     agent_answer_temperature: float = 0.0
     agent_max_subquestions: int = 4
-    # Adaptive agent (each switch is off by default = original behaviour; see ADR)
+    # Adaptive agent switches (ADR-0021; rewrite default made leaner in ADR-0024).
     # rewrite policy: always | skip_simple (no rewrite for simple questions) |
-    #   skip_subquestions (no rewrite of LLM-written sub-questions) | never
-    agent_rewrite_policy: str = "always"
+    #   skip_subquestions (no rewrite of LLM-written sub-questions) | never.
+    # Default skip_subquestions: the analysis step already writes focused,
+    # search-ready sub-questions, so rewriting each one is a slow extra LLM call.
+    agent_rewrite_policy: str = "skip_subquestions"
     # skip the LLM sufficiency check when every sub-question already has a passage
     # with cross-encoder score >= agent_coverage_min_score; simple questions get at
     # most agent_max_extra_rounds_simple extra rounds

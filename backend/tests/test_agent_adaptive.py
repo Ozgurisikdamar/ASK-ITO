@@ -59,13 +59,17 @@ def _roles(res):
     return res["metrics"]["llm"]["by_role"]
 
 
-def test_defaults_reproduce_original_flow():
-    assert settings.agent_rewrite_policy == "always"
+def test_defaults_are_lean_no_sufficiency_no_rewrite():
+    # ADR-0024: AI Mode drops its two slowest extra LLM calls by default.
+    assert settings.agent_rewrite_policy == "skip_subquestions"
+    assert settings.agent_max_rounds == 1  # the sufficiency loop never runs
     assert not settings.agent_adaptive_sufficiency
     assert settings.agent_final_rerank_pool == 0 and not settings.agent_reuse_rerank_scores
     res = _run()
-    assert "rewrite_skipped" not in _steps(res) and "sufficiency_skipped" not in _steps(res)
-    assert _roles(res)["rewrite"]["calls"] == 2  # one per sub-question
+    # Sub-questions are searched but not rewritten, and sufficiency never runs.
+    assert "rewrite" not in _roles(res) and "sufficiency" not in _roles(res)
+    assert _steps(res).count("rewrite_skipped") == 2  # one per sub-question
+    assert "sufficiency" not in _steps(res) and "sufficiency_skipped" not in _steps(res)
     assert res["agent_counts"]["final_rerank_reused"] == 0
 
 
@@ -86,6 +90,7 @@ def test_skip_simple_policy_only_affects_simple_questions(monkeypatch):
 
 
 def test_adaptive_sufficiency_skips_llm_when_covered(monkeypatch):
+    monkeypatch.setattr(settings, "agent_max_rounds", 3)  # default 1 removes the loop
     monkeypatch.setattr(settings, "agent_adaptive_sufficiency", True)
     monkeypatch.setattr(settings, "agent_coverage_min_score", -1e9)
     res = _run()
@@ -99,6 +104,7 @@ def test_adaptive_caps_extra_rounds_for_simple_questions(monkeypatch):
     class SimpleInsufficient(InsufficientLLM, SimpleLLM):
         pass
 
+    monkeypatch.setattr(settings, "agent_max_rounds", 3)  # default 1 leaves no room to cap
     monkeypatch.setattr(settings, "agent_coverage_min_score", 1e9)
     base = _run(SIMPLE_Q, SimpleInsufficient("A [1]."))
     monkeypatch.setattr(settings, "agent_adaptive_sufficiency", True)
@@ -141,7 +147,9 @@ def test_deadline_still_answers(monkeypatch):
 
 # -- deterministic guards ---------------------------------------------------------
 
-def test_identical_search_queries_are_searched_once():
+def test_identical_search_queries_are_searched_once(monkeypatch):
+    monkeypatch.setattr(settings, "agent_rewrite_policy", "always")  # default skips rewrite
+
     class SameRewriteLLM(ScriptedLLM):
         def chat(self, messages, temperature=0.0, model=None, **kwargs):
             if "Rewrite the user's question" in messages[-1]["content"]:
@@ -165,7 +173,9 @@ def test_repeated_follow_up_query_stops_the_sufficiency_loop(monkeypatch):
     assert "answer" in _roles(res) and res["answer"]
 
 
-def test_duplicate_subquestions_are_dropped():
+def test_duplicate_subquestions_are_dropped(monkeypatch):
+    monkeypatch.setattr(settings, "agent_rewrite_policy", "always")  # default skips rewrite
+
     class DupLLM(ScriptedLLM):
         def chat(self, messages, temperature=0.0, model=None, **kwargs):
             if "Analyse the user's question" in messages[-1]["content"]:

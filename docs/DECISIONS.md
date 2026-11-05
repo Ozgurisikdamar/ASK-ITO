@@ -234,8 +234,9 @@ logged instead of being swallowed silently (the search still falls back to the
 original query).
 
 ## ADR-0021: Adaptive agent switches
-The agent loop gained independent, configuration-driven switches, all off by
-default so the original loop stays reproducible:
+The agent loop gained independent, configuration-driven switches, off by default
+when added (the rewrite policy now defaults to a leaner value — see ADR-0024 —
+but every switch is still overridable in `.env`):
 `AGENT_REWRITE_POLICY` (always | skip_simple | skip_subquestions | never),
 `AGENT_ADAPTIVE_SUFFICIENCY` with `AGENT_COVERAGE_MIN_SCORE` (skip the LLM
 sufficiency check when every sub-question already has a passage at or above
@@ -314,3 +315,31 @@ in `docs/ASK_ITO_FAST_RAG_REVIEW_REMEDIATION_REPORT.md`.
   API errors return an error id without internals; at most
   `MAX_CONCURRENT_GENERATIONS` answers run at once; client disconnects cancel
   generation.
+
+## ADR-0024: AI Mode drops its two slowest extra LLM calls by default
+A multi-hop AI Mode question made up to six sequential LLM calls (analysis, one
+rewrite per sub-question, one or more sufficiency checks, the answer). On a
+CPU-only machine every call is 15–200 s, so the two that bought the least were
+removed from the default path:
+
+- **Sufficiency step removed.** `AGENT_MAX_ROUNDS=1`: the agent searches each
+  sub-question once and answers; the LLM sufficiency check (which measured ~2 min
+  for one call on the CPU sandbox) never runs. The loop and its switches are
+  unchanged in code — raising `AGENT_MAX_ROUNDS` restores the follow-up /
+  sufficiency behaviour.
+- **Sub-question rewrite skipped.** `AGENT_REWRITE_POLICY=skip_subquestions`: the
+  analysis step already writes focused, search-ready sub-questions, so rewriting
+  each one again (~20 s per call) is wasted. `AGENT_REWRITE_POLICY=always`
+  restores it.
+
+A multi-hop question therefore makes two LLM calls by default — the analysis and
+the single grounded answer — instead of six. The retrieval pipeline is unchanged
+and every stage still appears in the trace (analysis, BM25, vector, RRF, rerank,
+search, final rerank, answer; a skipped rewrite shows as `rewrite_skipped`).
+
+Not changed — why the answer step is still the slow part: the answer call itself
+dominates latency and no amount of step removal touches it. A 9B model on CPU
+prefills the retrieved context in ~15–25 s and then generates at ~3 tokens/s, so
+a ~300-token cited answer is tens of seconds to a couple of minutes on its own.
+The levers for that call are a smaller answer model (e.g. `qwen3.5:4b`), fewer
+output tokens (`OVERVIEW_MAX_TOKENS`) or a GPU — not fewer agent steps.
